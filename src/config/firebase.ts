@@ -1,0 +1,34 @@
+// ============================================
+// Firebase Configuration
+// ============================================
+
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { getAnalytics, isSupported } from 'firebase/analytics';
+
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyDqekx0Ujt7R0X1kCGb1FS-X7gI5g9DFN4",
+    authDomain: "test-exam-a0db0.firebaseapp.com",
+    projectId: "test-exam-a0db0",
+    storageBucket: "test-exam-a0db0.firebasestorage.app",
+    messagingSenderId: "253032575652",
+    appId: "1:253032575652:web:195518d1f1a1d8205d2c31",
+    measurementId: "G-08WNNMCN07"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Initialize Firestore
+export const db = getFirestore(app);
+
+// Initialize Analytics (only in browser)
+export const initAnalytics = async () => {
+    if (await isSupported()) {
+        return getAnalytics(app);
+    }
+    return null;
+};
+
+export default app;
