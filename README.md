@@ -1,21 +1,28 @@
 # TestExam - Professional Online Examination Platform
 
-A complete online exam application inspired by Testmoz, built with React, TypeScript, and Tailwind CSS.
+A complete online exam application with support for MCQ, Reasoning, Fill-in-the-blank, and Coding questions. Built with React, TypeScript, and Tailwind CSS.
 
-![TestExam](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![TestExam](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![React](https://img.shields.io/badge/React-18.3-61DAFB.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6.svg)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-38B2AC.svg)
 
 ## 🚀 Features
 
+### Question Types
+- **MCQ (Single Answer)** - Multiple choice with one correct answer
+- **MCQ (Multiple Answers)** - Multiple choice with multiple correct answers
+- **True/False** - Binary choice questions
+- **Reasoning** - Logic and aptitude questions
+- **Coding Questions** - Write and execute Python code with test cases
+
 ### Admin Features
 - **Test Creation** - Create tests with custom names and admin passwords
-- **Question Management** - Add questions manually or generate with AI
-  - Multiple Choice (Single Answer)
-  - Multiple Choice (Multiple Answers)
-  - True/False
-  - Coding Questions
+- **Question Management**
+  - Add questions manually
+  - Generate with AI (rule-based generator)
+  - **CSV Import** - Bulk upload questions including coding questions
+- **Question Bank** - Centralized question repository with filtering
 - **Test Settings**
   - Question behavior (randomization, one page/per question)
   - Review settings (passing score, result display options)
@@ -26,38 +33,44 @@ A complete online exam application inspired by Testmoz, built with React, TypeSc
 
 ### Candidate Features
 - **Clean Exam Interface** - Distraction-free exam experience
+- **Code Editor** - Monaco-style editor for coding questions
+- **Live Code Execution** - Run Python code against test cases
 - **Timer** - Visible countdown with auto-submit
 - **Question Navigation** - Navigate between questions easily
 - **Flag Questions** - Mark questions for review
 - **Auto-save** - Responses saved automatically
 - **Results Review** - View score, correct answers, and explanations
 
-### UX Enhancements
-- Loading skeletons
-- Empty states
-- Toast notifications
-- Tab-switch detection and warning
-- Responsive design (mobile-friendly)
+### CSV Import Features
+- **Single CSV for All Types** - Import MCQ, Reasoning, and Coding questions
+- **Coding Question Support** - Include sample input/output and hidden test cases
+- **Validation** - Automatic validation with detailed error messages
+- **Preview** - Preview questions before importing
+- **Question Type Filter** - Separate MCQ and Coding questions during selection
 
 ## 🛠️ Technology Stack
 
-- **Frontend Framework**: React 18 with TypeScript
-- **Build Tool**: Vite 6
-- **Styling**: Tailwind CSS 3.4
-- **State Management**: Zustand with persistence
-- **Routing**: React Router DOM 6
-- **Charts**: Recharts
-- **Icons**: Lucide React
+| Category | Technology |
+|----------|------------|
+| Frontend | React 18 with TypeScript |
+| Build Tool | Vite 6 |
+| Styling | Tailwind CSS 3.4 |
+| State Management | Zustand with persistence |
+| Routing | React Router DOM 6 |
+| Charts | Recharts |
+| Icons | Lucide React |
+| Code Execution | Client-side Python Interpreter |
 
 ## 📦 Installation
 
 1. **Prerequisites**
-   - Node.js 18+ 
+   - Node.js 18+
    - npm or yarn
 
-2. **Install Dependencies**
+2. **Clone & Install**
    ```bash
-   cd testexam
+   git clone https://github.com/bhanuthammali142/ai_testing.git
+   cd ai_testing
    npm install
    ```
 
@@ -82,54 +95,134 @@ Use these credentials to explore the demo test:
 1. Go to the homepage
 2. Click "Create a Test"
 3. Enter test name and admin password
-4. Start adding questions and configuring settings
+4. Add questions manually, via AI, or import from CSV
+5. Configure settings and publish
 
 ### Taking a Test
-1. Navigate to `/exam/test-001`
-2. Enter required details
-3. Complete the exam
+1. Navigate to `/exam/test-001` or access via homepage
+2. Enter required details (name, email if required)
+3. Complete the exam (MCQ and Coding questions)
 4. View your results
 
 ## 📂 Project Structure
 
 ```
 src/
+├── ai/                     # AI Question Generation
+│   ├── questionGenerator.ts
+│   ├── questionTemplates.ts
+│   ├── questionTracker.ts
+│   └── ruleBasedGenerator.ts
 ├── components/
-│   ├── common/         # Reusable UI components
-│   │   ├── Toast.tsx
-│   │   ├── Modal.tsx
-│   │   ├── Loading.tsx
+│   ├── admin/              # Admin-specific components
+│   │   └── QuestionBankSelector.tsx
+│   ├── coding/             # Coding question components
+│   │   ├── CodingQuestionEditor.tsx
+│   │   ├── CodingQuestionView.tsx
+│   │   └── CodingResultsView.tsx
+│   ├── common/             # Reusable UI components
 │   │   ├── EmptyState.tsx
+│   │   ├── Loading.tsx
+│   │   ├── Modal.tsx
+│   │   ├── Toast.tsx
 │   │   └── ToggleSwitch.tsx
-│   └── layout/         # Layout components
+│   └── layout/             # Layout components
 │       ├── AdminLayout.tsx
 │       └── ExamLayout.tsx
+├── config/
+│   └── firebase.ts         # Firebase configuration
 ├── data/
-│   └── mockData.ts     # Sample data and defaults
+│   ├── mockData.ts         # Sample data and defaults
+│   └── subjectData.ts      # Subject/topic definitions
 ├── pages/
-│   ├── admin/          # Admin pages
+│   ├── admin/              # Admin pages
 │   │   ├── DashboardPage.tsx
-│   │   ├── QuestionsPage.tsx
-│   │   ├── SettingsPage.tsx
 │   │   ├── PublishPage.tsx
-│   │   └── ResultsPage.tsx
-│   ├── exam/           # Candidate pages
+│   │   ├── QuestionBankPage.tsx
+│   │   ├── QuestionsPage.tsx
+│   │   ├── ResultsPage.tsx
+│   │   └── SettingsPage.tsx
+│   ├── exam/               # Candidate pages
 │   │   ├── ExamEntryPage.tsx
-│   │   ├── ExamTakePage.tsx
-│   │   └── ExamSubmittedPage.tsx
+│   │   ├── ExamSubmittedPage.tsx
+│   │   └── ExamTakePage.tsx
 │   └── HomePage.tsx
-├── stores/             # Zustand stores
-│   ├── authStore.ts
-│   ├── testStore.ts
+├── services/
+│   ├── coding/             # Code execution services
+│   │   ├── codeExecutor.ts     # Python interpreter
+│   │   ├── codingService.ts    # Evaluation logic
+│   │   └── index.ts
+│   └── firebaseService.ts  # Firebase integration
+├── stores/                 # Zustand state stores
+│   ├── aiQuestionStore.ts
 │   ├── attemptStore.ts
-│   ├── uiStore.ts
-│   └── aiQuestionStore.ts
+│   ├── authStore.ts
+│   ├── codingStore.ts
+│   ├── questionBankStore.ts
+│   ├── testStore.ts
+│   └── uiStore.ts
 ├── types/
-│   └── index.ts        # TypeScript type definitions
-├── App.tsx             # Main app with routing
-├── main.tsx            # Entry point
-└── index.css           # Global styles
+│   ├── coding.ts           # Coding question types
+│   └── index.ts            # All type definitions
+├── utils/
+│   ├── csvParser.ts        # CSV parsing & validation
+│   └── questionSelector.ts # Question selection logic
+├── App.tsx                 # Main app with routing
+├── main.tsx                # Entry point
+└── index.css               # Global styles with design system
 ```
+
+## 📋 CSV Format for Question Import
+
+### Headers (All Columns)
+```
+id,subject,topic,difficulty,question_type,question,option_a,option_b,option_c,option_d,correct_answer,explanation,sample_input,sample_output,hidden_test_cases,time_limit
+```
+
+### Question Types
+| Type | Description |
+|------|-------------|
+| `mcq` | Multiple Choice Question |
+| `reasoning` | Logic/Aptitude Question |
+| `fill` | Fill in the Blank |
+| `coding` | Programming Question |
+
+### MCQ/Reasoning Example
+```csv
+Q001,Mathematics,Algebra,Easy,mcq,"What is 2 + 2?",3,4,5,6,B,"Basic addition",,,,
+```
+
+### Coding Question Example
+```csv
+Q004,Programming,Strings,Medium,coding,"Check if palindrome",,,,,,racecar,True,"[{""input"":""hello"",""output"":""False""}]",5
+```
+
+### Hidden Test Cases Format (JSON)
+```json
+[
+  {"input": "hello", "output": "False"},
+  {"input": "madam", "output": "True"}
+]
+```
+
+**Sample CSV available at**: `samples/sample_mixed_questions.csv`
+
+## 💻 Coding Question Evaluation
+
+### Supported Language
+- **Python** (client-side interpreter)
+
+### Security Features
+- Blocked dangerous patterns (`import os`, `exec`, `eval`, etc.)
+- Execution timeout enforcement
+- Output length limits
+- Safe module allowlist
+
+### Test Case Evaluation
+- All test cases (sample + hidden) must pass
+- Exact output matching (whitespace normalized)
+- Partial scoring based on passed tests
+- Detailed feedback for each test case
 
 ## 🔧 Configuration
 
@@ -157,12 +250,12 @@ src/
 
 ## 🎨 Design System
 
-The app uses a custom design system with:
+The app uses a modern glassmorphism design with:
 
 - **Colors**: Primary (blue), Accent (purple), Success, Warning, Danger
 - **Typography**: Inter (body), Outfit (display)
-- **Effects**: Glassmorphism, gradients, subtle animations
-- **Components**: Cards, buttons, toggles, badges
+- **Effects**: Glass panels, gradients, subtle animations
+- **Components**: Cards, buttons, toggles, badges, code editor
 
 ## 📊 Analytics
 
@@ -175,7 +268,7 @@ The Results page provides:
 - Score distribution chart
 - Per-question performance grid
 - Individual attempt details
-- Export to CSV/Excel
+- Export to CSV
 
 ## 🔐 Security Features
 
@@ -183,7 +276,8 @@ The Results page provides:
 - Passcode or email-restricted test access
 - Anti-cheating browser controls
 - Tab-switch monitoring and logging
-- Secure state persistence
+- Secure code execution sandbox
+- Blocked dangerous Python patterns
 
 ## 🚀 Deployment
 
@@ -197,16 +291,36 @@ npm run build
 npm run preview
 ```
 
-## 📝 Future Enhancements
+### Output
+The build output will be in the `dist/` folder, ready for deployment to any static hosting service (Vercel, Netlify, etc.)
 
-- [ ] Backend API integration
-- [ ] Real AI question generation
-- [ ] Proctoring features
-- [ ] Advanced analytics
-- [ ] Question bank management
-- [ ] Import/Export questions
-- [ ] Email notifications
-- [ ] Scheduled test windows
+## 📝 Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
+
+## 🗂️ Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/utils/csvParser.ts` | CSV parsing and validation |
+| `src/services/coding/codeExecutor.ts` | Python code interpreter |
+| `src/services/coding/codingService.ts` | Test case evaluation |
+| `src/stores/attemptStore.ts` | Exam attempt management |
+| `src/stores/codingStore.ts` | Coding question state |
+| `src/components/coding/CodingQuestionView.tsx` | Code editor UI |
+
+## ✅ Recent Updates (v2.0.0)
+
+- ✨ **CSV Import for Coding Questions** - Upload MCQ and Coding questions via single CSV
+- ✨ **Question Type Filters** - Separate MCQ and Coding questions during exam creation
+- 🐛 **Fixed Coding Evaluation** - Proper test case validation for coding answers
+- 🐛 **Fixed CodingQuestionView Integration** - Code editor properly renders in exams
+- 📝 **Updated Documentation** - Comprehensive README with all features
 
 ## 📄 License
 
@@ -215,3 +329,5 @@ MIT License - feel free to use this project for educational or commercial purpos
 ---
 
 Built with ❤️ for educators and organizations
+
+**Repository**: [github.com/bhanuthammali142/ai_testing](https://github.com/bhanuthammali142/ai_testing)

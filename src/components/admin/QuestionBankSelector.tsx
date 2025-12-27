@@ -37,24 +37,46 @@ interface QuestionBankSelectorProps {
 
 /**
  * Convert BankQuestion to Question format for the test
+ * Handles both MCQ and Coding questions
  */
 function convertToTestQuestion(
     bankQuestion: BankQuestion,
     testId: string,
     order: number
 ): Question {
+    // For coding questions, return a coding type question
+    if (bankQuestion.questionType === 'coding') {
+        return {
+            id: uuidv4(),
+            testId,
+            type: 'coding',
+            text: bankQuestion.questionText,
+            options: [],  // Coding questions don't have options
+            explanation: bankQuestion.explanation || '',
+            difficulty: bankQuestion.difficulty,
+            topic: bankQuestion.topic,
+            points: bankQuestion.difficulty === 'easy' ? 5 : bankQuestion.difficulty === 'medium' ? 10 : 15,
+            negativeMarking: 0,
+            order,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        };
+    }
+
+    // For MCQ/reasoning/fill questions, include options
+    const options = bankQuestion.options || { A: '', B: '', C: '', D: '' };
     return {
         id: uuidv4(),
         testId,
         type: 'mcq-single',
         text: bankQuestion.questionText,
         options: [
-            { id: uuidv4(), text: bankQuestion.options.A, isCorrect: bankQuestion.correctAnswer === 'A' },
-            { id: uuidv4(), text: bankQuestion.options.B, isCorrect: bankQuestion.correctAnswer === 'B' },
-            { id: uuidv4(), text: bankQuestion.options.C, isCorrect: bankQuestion.correctAnswer === 'C' },
-            { id: uuidv4(), text: bankQuestion.options.D, isCorrect: bankQuestion.correctAnswer === 'D' },
+            { id: uuidv4(), text: options.A, isCorrect: bankQuestion.correctAnswer === 'A' },
+            { id: uuidv4(), text: options.B, isCorrect: bankQuestion.correctAnswer === 'B' },
+            { id: uuidv4(), text: options.C, isCorrect: bankQuestion.correctAnswer === 'C' },
+            { id: uuidv4(), text: options.D, isCorrect: bankQuestion.correctAnswer === 'D' },
         ],
-        explanation: bankQuestion.explanation,
+        explanation: bankQuestion.explanation || '',
         difficulty: bankQuestion.difficulty,
         topic: bankQuestion.topic,
         points: bankQuestion.difficulty === 'easy' ? 1 : bankQuestion.difficulty === 'medium' ? 2 : 3,
@@ -116,12 +138,19 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
     // Local State - Manual Selection
     const [searchQuery, setSearchQuery] = useState('');
     const [filterDifficulty, setFilterDifficulty] = useState<Difficulty | ''>('');
+    const [filterQuestionType, setFilterQuestionType] = useState<'all' | 'mcq' | 'coding'>('all');
     const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(new Set());
     const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
 
     // Get metadata
     const subjects = getSubjects();
     const topics = selectedSubject ? getTopicsForSubject(selectedSubject) : [];
+
+    // Question type stats
+    const questionTypeStats = useMemo(() => ({
+        mcq: bankQuestions.filter(q => q.questionType !== 'coding').length,
+        coding: bankQuestions.filter(q => q.questionType === 'coding').length
+    }), [bankQuestions]);
 
     // Available questions preview for auto mode
     const availablePreview = useMemo(() => {
@@ -151,6 +180,13 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
     const filteredQuestions = useMemo(() => {
         let filtered = [...bankQuestions];
 
+        // Filter by question type
+        if (filterQuestionType === 'coding') {
+            filtered = filtered.filter(q => q.questionType === 'coding');
+        } else if (filterQuestionType === 'mcq') {
+            filtered = filtered.filter(q => q.questionType !== 'coding');
+        }
+
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(q =>
@@ -165,7 +201,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
         }
 
         return filtered;
-    }, [bankQuestions, searchQuery, filterDifficulty]);
+    }, [bankQuestions, searchQuery, filterDifficulty, filterQuestionType]);
 
     // ========================================
     // Handlers
@@ -470,6 +506,37 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
                             {/* Manual Selection Mode */}
                             {selectionMode === 'manual' && (
                                 <div className="space-y-4">
+                                    {/* Question Type Tabs */}
+                                    <div className="flex gap-2 p-1 bg-slate-800/50 rounded-lg">
+                                        <button
+                                            onClick={() => setFilterQuestionType('all')}
+                                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${filterQuestionType === 'all'
+                                                    ? 'bg-primary-500 text-white'
+                                                    : 'text-slate-400 hover:text-white'
+                                                }`}
+                                        >
+                                            All ({questionTypeStats.mcq + questionTypeStats.coding})
+                                        </button>
+                                        <button
+                                            onClick={() => setFilterQuestionType('mcq')}
+                                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${filterQuestionType === 'mcq'
+                                                    ? 'bg-primary-500 text-white'
+                                                    : 'text-slate-400 hover:text-white'
+                                                }`}
+                                        >
+                                            MCQ ({questionTypeStats.mcq})
+                                        </button>
+                                        <button
+                                            onClick={() => setFilterQuestionType('coding')}
+                                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${filterQuestionType === 'coding'
+                                                    ? 'bg-primary-500 text-white'
+                                                    : 'text-slate-400 hover:text-white'
+                                                }`}
+                                        >
+                                            💻 Coding ({questionTypeStats.coding})
+                                        </button>
+                                    </div>
+
                                     {/* Search & Filter */}
                                     <div className="flex gap-3">
                                         <div className="flex-1 relative">
@@ -549,7 +616,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
                                                             {q.questionText}
                                                         </p>
 
-                                                        {expandedQuestionId === q.id && (
+                                                        {expandedQuestionId === q.id && q.options && (
                                                             <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-2">
                                                                 {(['A', 'B', 'C', 'D'] as const).map((opt) => (
                                                                     <div
@@ -562,7 +629,7 @@ const QuestionBankSelector: React.FC<QuestionBankSelectorProps> = ({
                                                                             }
                                                                         `}
                                                                     >
-                                                                        <span className="font-medium">{opt}.</span> {q.options[opt]}
+                                                                        <span className="font-medium">{opt}.</span> {q.options![opt]}
                                                                     </div>
                                                                 ))}
                                                             </div>

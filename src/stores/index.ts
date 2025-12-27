@@ -8,3 +8,4 @@ export { useAttemptStore } from './attemptStore';
 export { useUIStore } from './uiStore';
 export { useAIQuestionStore } from './aiQuestionStore';
 export { useQuestionBankStore } from './questionBankStore';
+export { useCodingStore } from './codingStore';

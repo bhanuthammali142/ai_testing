@@ -6,7 +6,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 import { Attempt, QuestionResponse, Candidate, TestAnalytics, Question } from '../types';
-import { mockAttempts } from '../data/mockData';
 import { attemptService, studentService } from '../services/firebaseService';
 
 interface AttemptState {
@@ -126,21 +125,88 @@ export const useAttemptStore = create<AttemptState>()(
 
                 // Import testStore to get questions for scoring
                 const { useTestStore } = await import('./testStore');
+                const { useCodingStore } = await import('./codingStore');
                 const questions = useTestStore.getState().getQuestionsForTest(currentAttempt.testId);
 
-                // Calculate scores
+                // Import coding evaluation service
+                const { submitCode } = await import('../services/coding');
+
+                // Calculate scores - need to handle async for coding questions
                 let totalScore = 0;
-                const scoredResponses = currentAttempt.responses.map(response => {
+                const scoredResponses: typeof currentAttempt.responses = [];
+
+                for (const response of currentAttempt.responses) {
                     const question = questions.find(q => q.id === response.questionId);
-                    if (!question) return { ...response, isCorrect: false, pointsEarned: 0 };
+                    if (!question) {
+                        scoredResponses.push({ ...response, isCorrect: false, pointsEarned: 0 });
+                        continue;
+                    }
 
                     let isCorrect = false;
                     let pointsEarned = 0;
 
                     if (question.type === 'coding') {
-                        // For coding questions, partial credit could be implemented
-                        isCorrect = response.codeAnswer?.trim() !== '';
-                        pointsEarned = isCorrect ? question.points : 0;
+                        // CRITICAL: Properly evaluate coding questions with test cases
+                        console.log('🔧 [EVALUATION] Evaluating coding question:', question.id);
+
+                        const code = response.codeAnswer?.trim() || '';
+
+                        if (!code) {
+                            // Empty code = FAIL
+                            console.log('❌ [EVALUATION] Empty code submission');
+                            isCorrect = false;
+                            pointsEarned = 0;
+                        } else {
+                            // Get coding question details from coding store
+                            const codingQuestion = useCodingStore.getState().getCodingQuestion(question.id);
+
+                            if (codingQuestion) {
+                                // Build test cases from the coding question
+                                const testCases = [
+                                    {
+                                        id: 'sample',
+                                        input: codingQuestion.sampleInput,
+                                        expectedOutput: codingQuestion.sampleOutput,
+                                        isHidden: false,
+                                    },
+                                    ...codingQuestion.hiddenTestCases,
+                                ];
+
+                                try {
+                                    // Run the REAL evaluation
+                                    console.log('🚀 [EVALUATION] Running code evaluation...');
+                                    const result = await submitCode(
+                                        currentAttempt.id,
+                                        question.id,
+                                        code,
+                                        'python',
+                                        testCases,
+                                        codingQuestion.timeLimit,
+                                        question.points
+                                    );
+
+                                    if (result.success && result.data) {
+                                        isCorrect = result.data.passedCount === result.data.totalCount;
+                                        pointsEarned = result.data.finalScore;
+                                        console.log(`📊 [EVALUATION] Result: ${result.data.passedCount}/${result.data.totalCount} tests passed`);
+                                        console.log(`📊 [EVALUATION] Score: ${pointsEarned}/${question.points}`);
+                                    } else {
+                                        console.log('❌ [EVALUATION] Evaluation failed:', result.error);
+                                        isCorrect = false;
+                                        pointsEarned = 0;
+                                    }
+                                } catch (error) {
+                                    console.error('❌ [EVALUATION] Error during evaluation:', error);
+                                    isCorrect = false;
+                                    pointsEarned = 0;
+                                }
+                            } else {
+                                // Fallback: If no coding question details, mark as incorrect
+                                console.log('⚠️ [EVALUATION] No coding question details found, marking as incorrect');
+                                isCorrect = false;
+                                pointsEarned = 0;
+                            }
+                        }
                     } else {
                         // For MCQ and True/False
                         const correctOptions = question.options.filter(o => o.isCorrect).map(o => o.id);
@@ -157,8 +223,8 @@ export const useAttemptStore = create<AttemptState>()(
                     }
 
                     totalScore += pointsEarned;
-                    return { ...response, isCorrect, pointsEarned };
-                });
+                    scoredResponses.push({ ...response, isCorrect, pointsEarned });
+                }
 
                 const maxScore = currentAttempt.maxScore;
                 const percentage = maxScore > 0 ? Math.round((Math.max(0, totalScore) / maxScore) * 100) : 0;

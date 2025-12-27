@@ -11,7 +11,7 @@ import {
     TestSettings,
     TestStatus
 } from '../types';
-import { mockTests, mockQuestions, defaultTestSettings } from '../data/mockData';
+import { defaultTestSettings } from '../data/mockData';
 
 interface TestState {
     tests: Test[];

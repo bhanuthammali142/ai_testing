@@ -62,7 +62,7 @@ const ResultsPage: React.FC = () => {
         });
 
         // Set up real-time subscription
-        const unsubscribe = attemptService.subscribeToAttempts(currentTest.id, (firebaseAttempts) => {
+        const unsubscribe = attemptService.subscribeToAttempts(currentTest.id, (_firebaseAttempts) => {
             // Instead of reloading EVERYTHING again, we can just log success 
             // the onSnapshot logic in attemptService already does its thing
             // if we wanted to be more reactive we'd move this into the store

@@ -23,16 +23,18 @@ import {
     HelpCircle,
     X,
     FileText,
-    Check
+    Check,
+    Code
 } from 'lucide-react';
-import { useQuestionBankStore, useUIStore } from '../../stores';
+import { useQuestionBankStore, useUIStore, useCodingStore } from '../../stores';
 import {
     parseAndValidateCSV,
     validateFileType,
     readFileAsText,
     generateSampleCSV
 } from '../../utils/csvParser';
-import { BankQuestion, CSVParseResult, Difficulty } from '../../types';
+import { BankQuestion, CodingBankQuestion, CSVParseResult, Difficulty } from '../../types';
+import { CodingQuestion } from '../../types/coding';
 
 // ============================================
 // Sub-Components
@@ -107,7 +109,7 @@ const QuestionPreviewCard: React.FC<{
                 </button>
             </div>
 
-            {expanded && (
+            {expanded && question.options && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                         {(['A', 'B', 'C', 'D'] as const).map((opt) => (
@@ -118,14 +120,16 @@ const QuestionPreviewCard: React.FC<{
                                     : 'bg-slate-800/50 text-slate-300'
                                     }`}
                             >
-                                <span className="font-medium">{opt}.</span> {question.options[opt]}
+                                <span className="font-medium">{opt}.</span> {question.options![opt]}
                             </div>
                         ))}
                     </div>
-                    <div className="p-3 bg-slate-800/50 rounded-lg">
-                        <p className="text-xs text-slate-400 mb-1">Explanation:</p>
-                        <p className="text-sm text-slate-300">{question.explanation}</p>
-                    </div>
+                    {question.explanation && (
+                        <div className="p-3 bg-slate-800/50 rounded-lg">
+                            <p className="text-xs text-slate-400 mb-1">Explanation:</p>
+                            <p className="text-sm text-slate-300">{question.explanation}</p>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -291,10 +295,72 @@ const QuestionBankPage: React.FC = () => {
     // ========================================
 
     const handleImportQuestions = () => {
-        if (!parseResult || parseResult.questions.length === 0) return;
+        if (!parseResult) return;
 
-        addQuestions(parseResult.questions, 'uploaded.csv');
-        showToast('success', `Imported ${parseResult.questions.length} questions to the bank`);
+        const mcqCount = parseResult.questions.length;
+        const codingCount = parseResult.codingQuestions.length;
+
+        if (mcqCount === 0 && codingCount === 0) {
+            showToast('error', 'No valid questions to import');
+            return;
+        }
+
+        // Import MCQ/Reasoning questions to the question bank
+        if (mcqCount > 0) {
+            addQuestions(parseResult.questions, 'uploaded.csv');
+        }
+
+        // Import Coding questions to the coding store AND question bank
+        if (codingCount > 0) {
+            const { addCodingQuestion } = useCodingStore.getState();
+
+            // Add coding questions to both stores
+            parseResult.codingQuestions.forEach((cq: CodingBankQuestion) => {
+                // Add to coding store for proper evaluation
+                const codingQuestion: CodingQuestion = {
+                    id: cq.id,
+                    testId: 'bank',  // Mark as bank question
+                    type: 'coding',
+                    problemStatement: cq.problemStatement,
+                    sampleInput: cq.sampleInput,
+                    sampleOutput: cq.sampleOutput,
+                    hiddenTestCases: cq.hiddenTestCases,
+                    timeLimit: cq.timeLimit,
+                    supportedLanguages: ['python'],
+                    difficulty: cq.difficulty,
+                    topic: cq.topic,
+                    points: cq.difficulty === 'easy' ? 5 : cq.difficulty === 'medium' ? 10 : 15,
+                    order: 0,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                };
+                addCodingQuestion(codingQuestion);
+
+                // Also add to question bank for selection
+                const bankQuestion: BankQuestion = {
+                    id: cq.id,
+                    subject: cq.subject,
+                    topic: cq.topic,
+                    difficulty: cq.difficulty,
+                    questionType: 'coding',
+                    questionText: cq.problemStatement,
+                    sampleInput: cq.sampleInput,
+                    sampleOutput: cq.sampleOutput,
+                    hiddenTestCases: cq.hiddenTestCases,
+                    timeLimit: cq.timeLimit,
+                    createdAt: new Date(),
+                    usedInExams: [],
+                    usageCount: 0
+                };
+                addQuestions([bankQuestion], 'uploaded.csv');
+            });
+        }
+
+        const messages: string[] = [];
+        if (mcqCount > 0) messages.push(`${mcqCount} MCQ/Reasoning`);
+        if (codingCount > 0) messages.push(`${codingCount} Coding`);
+
+        showToast('success', `Imported ${messages.join(' + ')} questions to the bank`);
         setParseResult(null);
         setActiveTab('bank');
     };
@@ -541,15 +607,48 @@ const QuestionBankPage: React.FC = () => {
                                         </div>
                                     )}
 
+                                    {/* Preview Coding Questions */}
+                                    {parseResult.codingQuestions.length > 0 && (
+                                        <div className="mt-4">
+                                            <h3 className="font-medium text-white mb-3 flex items-center gap-2">
+                                                <Code size={16} className="text-cyan-400" />
+                                                Coding Questions ({parseResult.codingQuestions.length})
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {parseResult.codingQuestions.slice(0, 3).map((cq) => (
+                                                    <div key={cq.id} className="glass-panel p-3 rounded-lg">
+                                                        <p className="text-sm text-white line-clamp-2">{cq.problemStatement}</p>
+                                                        <div className="flex gap-2 mt-2 text-xs">
+                                                            <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">
+                                                                {cq.topic}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 bg-slate-700 text-slate-300 rounded">
+                                                                {cq.timeLimit}s timeout
+                                                            </span>
+                                                            <span className="px-2 py-0.5 bg-slate-700 text-slate-300 rounded">
+                                                                {cq.hiddenTestCases.length} test cases
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Import Actions */}
                                     <div className="flex gap-3 pt-4 border-t border-white/10">
                                         <button
                                             onClick={handleImportQuestions}
-                                            disabled={parseResult.questions.length === 0}
+                                            disabled={parseResult.questions.length === 0 && parseResult.codingQuestions.length === 0}
                                             className="gradient-button flex items-center gap-2"
                                         >
                                             <Check size={18} />
-                                            Import {parseResult.questions.length} Questions
+                                            Import {parseResult.questions.length + parseResult.codingQuestions.length} Questions
+                                            {parseResult.codingQuestions.length > 0 && (
+                                                <span className="text-xs opacity-75">
+                                                    ({parseResult.questions.length} MCQ + {parseResult.codingQuestions.length} Coding)
+                                                </span>
+                                            )}
                                         </button>
                                         <button
                                             onClick={() => setParseResult(null)}

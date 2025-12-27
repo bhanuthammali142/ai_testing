@@ -89,7 +89,7 @@ export const generateQuestionsFromRules = (input: GenerationInput): GenerationRe
     const { subject, topics, difficulty, count, testId } = input;
 
     // Collect all candidate questions
-    let candidatePool: { question: QuestionTemplate; difficulty: string; topic: string }[] = [];
+    const candidatePool: { question: QuestionTemplate; difficulty: string; topic: string }[] = [];
 
     topics.forEach(topic => {
         if (difficulty === 'mixed') {

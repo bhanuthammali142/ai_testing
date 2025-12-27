@@ -1,0 +1,8 @@
+id,subject,topic,difficulty,question_type,question,option_a,option_b,option_c,option_d,correct_answer,explanation,sample_input,sample_output,hidden_test_cases,time_limit
+Q001,Mathematics,Algebra,Easy,mcq,"What is 2 + 2?",3,4,5,6,B,"Basic addition: 2 + 2 = 4",,,,
+Q002,Mathematics,Geometry,Medium,mcq,"What is the area of a circle with radius 7?","22 sq units","44 sq units","154 sq units","308 sq units",C,"Area = π * r² = 22/7 * 49 = 154 sq units",,,,
+Q003,Aptitude,Logic,Medium,reasoning,"If A > B and B > C, then?","A > C","A < C","A = C","Cannot determine",A,"Transitive property of inequality",,,,
+Q004,Programming,Strings,Medium,coding,"Write a program to check if a string is a palindrome. Read a string from input. Print 'True' if it is a palindrome, 'False' otherwise.",,,,,,racecar,True,"[{""input"":""hello"",""output"":""False""},{""input"":""madam"",""output"":""True""},{""input"":""level"",""output"":""True""}]",5
+Q005,Programming,Numbers,Easy,coding,"Write a program to find the sum of two numbers. Read two space-separated numbers from input and print their sum.",,,,,,5 3,8,"[{""input"":""10 20"",""output"":""30""},{""input"":""-5 5"",""output"":""0""},{""input"":""100 200"",""output"":""300""}]",3
+Q006,English,Grammar,Easy,mcq,"Which is the correct sentence?","He go to school","He goes to school","He going to school","He gone to school",B,"Subject-verb agreement: He (singular) goes (singular verb)",,,,
+Q007,Programming,Arrays,Hard,coding,"Write a program to find the maximum element in an array. Read space-separated integers from input and print the maximum value.",,,,,,5 3 9 1 7,9,"[{""input"":""1 2 3 4 5"",""output"":""5""},{""input"":""-5 -2 -10"",""output"":""-2""},{""input"":""100"",""output"":""100""}]",5

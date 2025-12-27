@@ -12,8 +12,9 @@ import {
     AlertTriangle,
     Send
 } from 'lucide-react';
-import { useTestStore, useAttemptStore, useUIStore } from '../../stores';
+import { useTestStore, useAttemptStore, useUIStore, useCodingStore } from '../../stores';
 import { Question } from '../../types';
+import { CodingQuestionView } from '../../components/coding';
 
 const ExamTakePage: React.FC = () => {
     const navigate = useNavigate();
@@ -246,17 +247,40 @@ const ExamTakePage: React.FC = () => {
 
                 {/* Options / Code Input */}
                 {question.type === 'coding' ? (
-                    <div>
-                        <label className="text-sm text-slate-400 mb-2 block">Your Solution:</label>
-                        <textarea
-                            value={codeAnswer}
-                            onChange={(e) => handleCodeChange(question.id, e.target.value)}
-                            className="w-full min-h-[200px] p-4 bg-slate-800 border border-white/10 rounded-xl text-white font-mono text-sm resize-y focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                            placeholder="Write your code here..."
-                            autoComplete={currentTest?.settings.antiCheating.disableAutocomplete ? 'off' : 'on'}
-                            spellCheck={!currentTest?.settings.antiCheating.disableSpellcheck}
-                        />
-                    </div>
+                    (() => {
+                        // Get the coding question details from the coding store
+                        const codingQuestion = useCodingStore.getState().getCodingQuestion(question.id);
+
+                        if (codingQuestion) {
+                            return (
+                                <CodingQuestionView
+                                    question={codingQuestion}
+                                    attemptId={currentAttempt?.id || ''}
+                                    onSubmit={(result) => {
+                                        // When code is submitted, save the code and mark as answered
+                                        handleCodeChange(question.id, result.code);
+                                        showToast('success', `Coding question evaluated: ${result.passedCount}/${result.totalCount} tests passed`);
+                                    }}
+                                />
+                            );
+                        } else {
+                            // Fallback to simple textarea if no coding question details found
+                            return (
+                                <div>
+                                    <label className="text-sm text-slate-400 mb-2 block">Your Solution:</label>
+                                    <textarea
+                                        value={codeAnswer}
+                                        onChange={(e) => handleCodeChange(question.id, e.target.value)}
+                                        className="w-full min-h-[200px] p-4 bg-slate-800 border border-white/10 rounded-xl text-white font-mono text-sm resize-y focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                                        placeholder="Write your code here..."
+                                    />
+                                    <p className="text-xs text-warning-400 mt-2">
+                                        ⚠️ Coding question not fully configured. Contact admin.
+                                    </p>
+                                </div>
+                            );
+                        }
+                    })()
                 ) : (
                     <div className="space-y-3">
                         {question.options.map((option, optIndex) => {

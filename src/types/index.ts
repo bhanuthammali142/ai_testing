@@ -225,38 +225,62 @@ export interface ModalConfig {
 // CSV Question Bank Types
 // ============================================
 
-// CSV Row format (strict format from CSV file)
+// CSV Row format (extended for all question types)
+export type CSVQuestionType = 'mcq' | 'reasoning' | 'fill' | 'coding';
+
 export interface CSVQuestionRow {
     id: string;
     subject: string;
     topic: string;
     difficulty: 'Easy' | 'Medium' | 'Hard';
+    question_type: CSVQuestionType;
     question: string;
     option_a: string;
     option_b: string;
     option_c: string;
     option_d: string;
-    correct_answer: 'A' | 'B' | 'C' | 'D';
+    correct_answer: 'A' | 'B' | 'C' | 'D' | '';
     explanation: string;
+    // Coding question fields
+    sample_input?: string;
+    sample_output?: string;
+    hidden_test_cases?: string;  // JSON string
+    time_limit?: number;
 }
 
-// Bank Question (stored in question bank)
+// Bank Question (stored in question bank - supports MCQ and Coding)
 export interface BankQuestion {
     id: string;
     subject: string;
     topic: string;
     difficulty: Difficulty;
+    questionType: CSVQuestionType;  // 'mcq' | 'reasoning' | 'fill' | 'coding'
     questionText: string;
-    options: {
+
+    // MCQ fields (optional for coding)
+    options?: {
         A: string;
         B: string;
         C: string;
         D: string;
     };
-    correctAnswer: 'A' | 'B' | 'C' | 'D';
-    explanation: string;
+    correctAnswer?: 'A' | 'B' | 'C' | 'D';
+    explanation?: string;
+
+    // Coding question fields (optional for MCQ)
+    sampleInput?: string;
+    sampleOutput?: string;
+    hiddenTestCases?: Array<{
+        id: string;
+        input: string;
+        expectedOutput: string;
+        isHidden: boolean;
+    }>;
+    timeLimit?: number;
+
+    // Common tracking fields
     createdAt: Date;
-    usedInExams: string[]; // Track which exams used this question
+    usedInExams: string[];
     usageCount: number;
 }
 
@@ -268,9 +292,31 @@ export interface CSVValidationError {
     value?: string;
 }
 
+// Coding Bank Question (stored in coding question bank)
+export interface CodingBankQuestion {
+    id: string;
+    subject: string;
+    topic: string;
+    difficulty: Difficulty;
+    problemStatement: string;
+    sampleInput: string;
+    sampleOutput: string;
+    hiddenTestCases: Array<{
+        id: string;
+        input: string;
+        expectedOutput: string;
+        isHidden: boolean;
+    }>;
+    timeLimit: number;
+    createdAt: Date;
+    usedInExams: string[];
+    usageCount: number;
+}
+
 export interface CSVParseResult {
     success: boolean;
     questions: BankQuestion[];
+    codingQuestions: CodingBankQuestion[];  // Separate list for coding questions
     errors: CSVValidationError[];
     totalRows: number;
     validRows: number;
@@ -317,3 +363,8 @@ export interface QuestionBankStats {
     usedQuestions: number;
     unusedQuestions: number;
 }
+
+// ============================================
+// Coding Types Export
+// ============================================
+export * from './coding';

@@ -21,7 +21,8 @@ import {
     Zap,
     BookOpen,
     Search,
-    Database
+    Database,
+    Code
 } from 'lucide-react';
 import {
     useTestStore,
@@ -38,7 +39,9 @@ import { QuestionBankSelector } from '../../components/admin';
 import { v4 as uuidv4 } from 'uuid';
 import { subjectData, Subject, Topic } from '../../data/subjectData';
 import { questionGenerator } from '../../ai';
-import { useQuestionBankStore } from '../../stores';
+import { useQuestionBankStore, useCodingStore } from '../../stores';
+import { CodingQuestionEditor } from '../../components/coding';
+import { CodingQuestion } from '../../types/coding';
 
 // Question types configuration
 const questionTypes: { type: QuestionType; label: string; description: string }[] = [
@@ -107,6 +110,11 @@ const QuestionsPage: React.FC = () => {
 
     // Question bank selector state
     const [showBankSelector, setShowBankSelector] = useState(false);
+
+    // Coding question editor state
+    const [showCodingEditor, setShowCodingEditor] = useState(false);
+    const [editingCodingQuestion, setEditingCodingQuestion] = useState<CodingQuestion | null>(null);
+    const { addCodingQuestion, updateCodingQuestion } = useCodingStore();
 
     // Get question bank stats
     const { questions: bankQuestions } = useQuestionBankStore();
@@ -431,6 +439,16 @@ const QuestionsPage: React.FC = () => {
                             <Plus className="w-5 h-5" />
                             Add Question
                         </button>
+                        <button
+                            onClick={() => {
+                                setEditingCodingQuestion(null);
+                                setShowCodingEditor(true);
+                            }}
+                            className="gradient-button-secondary flex items-center gap-2 border border-primary-500/30"
+                        >
+                            <Code className="w-5 h-5" />
+                            Add Coding Question
+                        </button>
                     </>
                 )}
             </div>
@@ -445,6 +463,44 @@ const QuestionsPage: React.FC = () => {
                             onClose={() => setShowBankSelector(false)}
                             onQuestionsAdded={(count) => {
                                 showToast('success', `Added ${count} questions from bank`);
+                            }}
+                        />
+                    )}
+
+                    {/* Coding Question Editor Modal */}
+                    {showCodingEditor && (
+                        <CodingQuestionEditor
+                            testId={currentTest.id}
+                            question={editingCodingQuestion}
+                            onSave={(questionData) => {
+                                if (editingCodingQuestion) {
+                                    updateCodingQuestion(editingCodingQuestion.id, questionData);
+                                    showToast('success', 'Coding question updated');
+                                } else {
+                                    // Add to coding store
+                                    addCodingQuestion(questionData);
+                                    // Also add a reference question to the regular questions
+                                    addQuestion({
+                                        testId: currentTest.id,
+                                        type: 'coding',
+                                        text: questionData.problemStatement,
+                                        options: [],
+                                        correctAnswer: '',
+                                        explanation: '',
+                                        difficulty: questionData.difficulty,
+                                        topic: questionData.topic,
+                                        points: questionData.points,
+                                        negativeMarking: 0,
+                                        order: questions.length + 1,
+                                    });
+                                    showToast('success', 'Coding question added');
+                                }
+                                setShowCodingEditor(false);
+                                setEditingCodingQuestion(null);
+                            }}
+                            onCancel={() => {
+                                setShowCodingEditor(false);
+                                setEditingCodingQuestion(null);
                             }}
                         />
                     )}
