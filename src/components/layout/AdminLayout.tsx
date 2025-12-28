@@ -17,27 +17,28 @@ import {
     ChevronRight,
     Database
 } from 'lucide-react';
-import { useAuthStore, useTestStore, useUIStore } from '../../stores';
+import { useUserAuthStore, useTestStore, useUIStore } from '../../stores';
 
 const AdminLayout: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { logout, currentTestId } = useAuthStore();
+    const { user, signOutUser } = useUserAuthStore();
     const { currentTest } = useTestStore();
     const { isSidebarOpen, toggleSidebar } = useUIStore();
 
-    const handleLogout = () => {
-        logout();
+    const handleLogout = async () => {
+        await signOutUser();
         navigate('/');
     };
 
     const navItems = [
-        { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/admin/questions', label: 'Questions', icon: FileQuestion },
         { path: '/admin/question-bank', label: 'Question Bank', icon: Database },
-        { path: '/admin/settings', label: 'Settings', icon: Settings },
+        { path: '/admin/settings', label: 'Test Settings', icon: Settings },
         { path: '/admin/publish', label: 'Publish', icon: Share2 },
         { path: '/admin/results', label: 'Results', icon: BarChart3 },
+        { path: '/admin/admin-settings', label: 'Admin Settings', icon: Settings },
     ];
 
     const isActive = (path: string) => location.pathname === path;
@@ -156,14 +157,28 @@ const AdminLayout: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <Link
-                            to={`/test/${currentTest?.urlAlias || currentTest?.id || currentTestId}`}
-                            target="_blank"
-                            className="glass-button text-sm flex items-center gap-2"
-                        >
-                            <Share2 className="w-4 h-4" />
-                            Preview Test
-                        </Link>
+                        {currentTest && (
+                            <Link
+                                to={`/test/${currentTest.urlAlias || currentTest.id}`}
+                                target="_blank"
+                                className="glass-button text-sm flex items-center gap-2"
+                            >
+                                <Share2 className="w-4 h-4" />
+                                Preview Test
+                            </Link>
+                        )}
+                        {user && (
+                            <div className="flex items-center gap-2 text-sm">
+                                {user.photoURL ? (
+                                    <img src={user.photoURL} alt={user.name} className="w-8 h-8 rounded-full" />
+                                ) : (
+                                    <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center">
+                                        <span className="text-primary-400 text-xs font-bold">{user.name[0]}</span>
+                                    </div>
+                                )}
+                                <span className="text-slate-300 hidden sm:inline">{user.name.split(' ')[0]}</span>
+                            </div>
+                        )}
                     </div>
                 </header>
 

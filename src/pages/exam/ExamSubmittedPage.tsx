@@ -11,16 +11,17 @@ import {
     Clock,
     FileQuestion,
     Home,
-    RotateCcw,
     Check,
     X
 } from 'lucide-react';
-import { useTestStore, useAttemptStore } from '../../stores';
+import { useTestStore, useAttemptStore, useUserAuthStore, useExamAssignmentStore } from '../../stores';
 
 const ExamSubmittedPage: React.FC = () => {
     const navigate = useNavigate();
     const { currentTest, getQuestionsForTest } = useTestStore();
     const { attempts, currentAttempt } = useAttemptStore();
+    const { user } = useUserAuthStore();
+    const { markExamAttempted } = useExamAssignmentStore();
 
     // Find the most recent completed attempt
     const [attempt] = useState(() => {
@@ -35,10 +36,19 @@ const ExamSubmittedPage: React.FC = () => {
     const questions = getQuestionsForTest(currentTest?.id || '');
     const settings = currentTest?.settings.review;
 
+    // Mark exam as attempted when page loads
     useEffect(() => {
-        // Clear current attempt from store after showing results
-        // This is handled by the completeAttempt function
-    }, []);
+        if (user && currentTest && attempt) {
+            // Mark the exam as attempted in the assignment store
+            markExamAttempted(currentTest.id, user.id, attempt.percentage);
+        }
+    }, [user, currentTest, attempt, markExamAttempted]);
+
+    // Determine the correct home destination based on user role
+    const getHomeDestination = () => {
+        if (!user) return '/';
+        return user.role === 'admin' ? '/admin' : '/dashboard';
+    };
 
     if (!attempt || !currentTest || !settings) {
         return (
@@ -47,8 +57,8 @@ const ExamSubmittedPage: React.FC = () => {
                     <CheckCircle className="w-16 h-16 text-success-400 mx-auto mb-4" />
                     <h2 className="text-2xl font-bold text-white mb-2">Exam Submitted</h2>
                     <p className="text-slate-400 mb-6">Your exam has been submitted successfully.</p>
-                    <button onClick={() => navigate('/')} className="gradient-button">
-                        Go Home
+                    <button onClick={() => navigate(getHomeDestination())} className="gradient-button">
+                        Go to Dashboard
                     </button>
                 </div>
             </div>
@@ -204,20 +214,20 @@ const ExamSubmittedPage: React.FC = () => {
                 {/* Actions */}
                 <div className="flex gap-4">
                     <button
-                        onClick={() => navigate('/')}
-                        className="flex-1 glass-button flex items-center justify-center gap-2"
-                    >
-                        <Home className="w-5 h-5" />
-                        Go Home
-                    </button>
-                    <button
-                        onClick={() => navigate(`/test/${currentTest.urlAlias || currentTest.id}`)}
+                        onClick={() => navigate(getHomeDestination())}
                         className="flex-1 gradient-button flex items-center justify-center gap-2"
                     >
-                        <RotateCcw className="w-5 h-5" />
-                        Try Again
+                        <Home className="w-5 h-5" />
+                        Go to Dashboard
                     </button>
                 </div>
+
+                {/* Notice about re-attempt */}
+                {user?.role === 'user' && (
+                    <p className="text-center text-sm text-slate-500">
+                        This exam can only be attempted once. Your result has been recorded.
+                    </p>
+                )}
             </div>
         </div>
     );

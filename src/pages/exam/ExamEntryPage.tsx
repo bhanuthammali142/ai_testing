@@ -1,5 +1,5 @@
 // ============================================
-// Exam Entry Page - Candidate Registration
+// Exam Entry Page - Candidate Registration with Auth Check
 // ============================================
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -14,9 +14,10 @@ import {
     User,
     IdCard,
     Mail,
-    Shield
+    Shield,
+    XCircle
 } from 'lucide-react';
-import { useTestStore, useAttemptStore, useUIStore } from '../../stores';
+import { useTestStore, useAttemptStore, useUIStore, useUserAuthStore, useExamAssignmentStore } from '../../stores';
 import { Candidate } from '../../types';
 
 const ExamEntryPage: React.FC = () => {
@@ -28,6 +29,11 @@ const ExamEntryPage: React.FC = () => {
     const { tests, setCurrentTest, getQuestionsForTest } = useTestStore();
     const { startAttempt, getAttemptsForTest, setCurrentAttempt } = useAttemptStore();
     const { showToast } = useUIStore();
+    const { user, isAuthenticated } = useUserAuthStore();
+    const {
+        isExamAssignedToUser,
+        hasUserAttemptedExam
+    } = useExamAssignmentStore();
 
     // 3. Derived State (Reactive to store changes)
     const test = useMemo(() => {
@@ -40,11 +46,26 @@ const ExamEntryPage: React.FC = () => {
         return getQuestionsForTest(test.id);
     }, [test, getQuestionsForTest]);
 
+    // Check if user has access and hasn't attempted
+    const hasAccess = useMemo(() => {
+        if (!user || !test) return false;
+        // Admins can always preview
+        if (user.role === 'admin') return true;
+        // Check if exam is assigned to user
+        return isExamAssignedToUser(test.id, user.id);
+    }, [user, test, isExamAssignedToUser]);
+
+    const alreadyAttempted = useMemo(() => {
+        if (!user || !test) return false;
+        if (user.role === 'admin') return false; // Admins can always preview
+        return hasUserAttemptedExam(test.id, user.id);
+    }, [user, test, hasUserAttemptedExam]);
+
     // 4. Local State
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
-        name: '',
-        email: '',
+        name: user?.name || '',
+        email: user?.email || '',
         studentId: '',
         passcode: '',
     });
@@ -58,7 +79,38 @@ const ExamEntryPage: React.FC = () => {
         }
     }, [test, setCurrentTest]);
 
+    // Pre-fill form with user data
+    useEffect(() => {
+        if (user) {
+            setFormData(prev => ({
+                ...prev,
+                name: user.name || prev.name,
+                email: user.email || prev.email,
+            }));
+        }
+    }, [user]);
+
     // 6. Loading / Error States
+    if (!isAuthenticated || !user) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
+                <div className="glass-card p-8 max-w-md text-center animate-fade-in">
+                    <Lock className="w-16 h-16 text-warning-400 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-white mb-2">Login Required</h2>
+                    <p className="text-slate-400 mb-6">
+                        Please sign in with your Google account to access this exam.
+                    </p>
+                    <button
+                        onClick={() => navigate('/login')}
+                        className="gradient-button px-6"
+                    >
+                        Go to Login
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     if (!test) {
         return (
             <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
@@ -69,10 +121,52 @@ const ExamEntryPage: React.FC = () => {
                         We couldn't find the test you're looking for. It may have been removed or the link is incorrect.
                     </p>
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => navigate(user.role === 'admin' ? '/admin' : '/dashboard')}
                         className="gradient-button px-6"
                     >
-                        Go to Home
+                        Go to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Check if user has already attempted this exam
+    if (alreadyAttempted) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
+                <div className="glass-card p-8 max-w-md text-center animate-fade-in">
+                    <XCircle className="w-16 h-16 text-danger-400 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-white mb-2">Already Attempted</h2>
+                    <p className="text-slate-400 mb-6">
+                        You have already attempted this exam. Each exam can only be taken once.
+                    </p>
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="gradient-button px-6"
+                    >
+                        Go to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Check if exam is assigned to user (for students)
+    if (user.role === 'user' && !hasAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
+                <div className="glass-card p-8 max-w-md text-center animate-fade-in">
+                    <Lock className="w-16 h-16 text-warning-400 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
+                    <p className="text-slate-400 mb-6">
+                        This exam has not been assigned to you. Please contact your instructor if you believe this is an error.
+                    </p>
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="gradient-button px-6"
+                    >
+                        Go to Dashboard
                     </button>
                 </div>
             </div>
@@ -89,10 +183,10 @@ const ExamEntryPage: React.FC = () => {
                         This test is currently <strong>{test.status}</strong> and not accepting new attempts.
                     </p>
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => navigate(user.role === 'admin' ? '/admin' : '/dashboard')}
                         className="gradient-button px-6"
                     >
-                        Go to Home
+                        Go to Dashboard
                     </button>
                 </div>
             </div>
@@ -155,11 +249,11 @@ const ExamEntryPage: React.FC = () => {
         setIsLoading(true);
 
         try {
-            // Create candidate profile
+            // Create candidate profile using authenticated user data
             const candidate: Candidate = {
-                id: `candidate-${Date.now()}`,
-                name: formData.name || undefined,
-                email: formData.email || undefined,
+                id: user?.id || `candidate-${Date.now()}`,
+                name: formData.name || user?.name || undefined,
+                email: formData.email || user?.email || undefined,
                 studentId: formData.studentId || undefined,
             };
 
@@ -195,6 +289,26 @@ const ExamEntryPage: React.FC = () => {
                             <h1 className="text-2xl font-bold text-white mb-1">{test.name}</h1>
                             <p className="text-slate-400 text-sm">Online Examination Portal</p>
                         </div>
+                    </div>
+
+                    {/* Logged in user info */}
+                    <div className="mb-6 p-3 bg-slate-800/50 rounded-xl flex items-center gap-3 relative z-10">
+                        {user.photoURL ? (
+                            <img src={user.photoURL} alt={user.name} className="w-10 h-10 rounded-full" />
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center">
+                                <User className="w-5 h-5 text-primary-400" />
+                            </div>
+                        )}
+                        <div>
+                            <p className="text-white font-medium text-sm">{user.name}</p>
+                            <p className="text-slate-400 text-xs">{user.email}</p>
+                        </div>
+                        {user.role === 'admin' && (
+                            <span className="ml-auto px-2 py-1 text-xs bg-accent-500/20 text-accent-400 rounded-lg">
+                                Admin Preview
+                            </span>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 mb-6 relative z-10">
@@ -236,7 +350,7 @@ const ExamEntryPage: React.FC = () => {
 
                 {/* Entry Form */}
                 <div className="glass-card p-8">
-                    <h2 className="text-lg font-bold text-white mb-6">Enter Your Details</h2>
+                    <h2 className="text-lg font-bold text-white mb-6">Confirm Your Details</h2>
 
                     <form onSubmit={(e) => { e.preventDefault(); handleStartExam(); }} className="space-y-5">
                         {settings.accessControl.requireName && (
