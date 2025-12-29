@@ -12,11 +12,13 @@ import {
     TestStatus
 } from '../types';
 import { defaultTestSettings } from '../data/mockData';
+import { testService } from '../services/firebaseService';
 
 interface TestState {
     tests: Test[];
     questions: Question[];
     currentTest: Test | null;
+    isLoading: boolean;
 
     // Test Actions
     createTest: (name: string, adminPassword: string) => Test;
@@ -33,10 +35,15 @@ interface TestState {
     getQuestionsForTest: (testId: string) => Question[];
     addQuestion: (question: Omit<Question, 'id' | 'createdAt' | 'updatedAt'>) => Question;
     addQuestions: (questions: Omit<Question, 'id' | 'createdAt' | 'updatedAt'>[]) => Question[];
+    setQuestionsForTest: (testId: string, questions: Question[]) => void;
     updateQuestion: (id: string, updates: Partial<Question>) => void;
     deleteQuestion: (id: string) => void;
     reorderQuestions: (testId: string, questionIds: string[]) => void;
     duplicateQuestion: (id: string) => Question | null;
+
+    // Firebase Sync Actions
+    syncTestToFirebase: (testId: string) => Promise<void>;
+    loadFromFirebase: () => Promise<void>;
 }
 
 export const useTestStore = create<TestState>()(
@@ -45,6 +52,7 @@ export const useTestStore = create<TestState>()(
             tests: [],
             questions: [],
             currentTest: null,
+            isLoading: false,
 
             // Test Actions
             createTest: (name: string, adminPassword: string) => {
@@ -192,6 +200,17 @@ export const useTestStore = create<TestState>()(
                 return newQuestions;
             },
 
+            // Set questions for a test (used when loading from Firebase)
+            setQuestionsForTest: (testId: string, newQuestions: Question[]) => {
+                set((state) => {
+                    // Remove existing questions for this test
+                    const otherQuestions = state.questions.filter((q) => q.testId !== testId);
+                    // Add the new questions
+                    return { questions: [...otherQuestions, ...newQuestions] };
+                });
+                console.log('✅ Questions set for test:', testId, 'Count:', newQuestions.length);
+            },
+
             updateQuestion: (id: string, updates: Partial<Question>) => {
                 set((state) => ({
                     questions: state.questions.map((q) =>
@@ -232,6 +251,112 @@ export const useTestStore = create<TestState>()(
 
                 set((state) => ({ questions: [...state.questions, newQuestion] }));
                 return newQuestion;
+            },
+
+            // Firebase Sync Actions
+            syncTestToFirebase: async (testId: string) => {
+                const test = get().tests.find((t) => t.id === testId);
+                if (!test) {
+                    console.error('❌ Test not found in local store:', testId);
+                    throw new Error('Test not found');
+                }
+
+                console.log('📤 Starting sync to Firebase for test:', test.name);
+
+                try {
+                    // Sync test
+                    await testService.saveTest(test);
+                    console.log('✅ Test data saved to Firebase');
+
+                    // Sync questions for this test
+                    const questions = get().questions.filter((q) => q.testId === testId);
+                    console.log('📋 Questions to sync:', questions.length);
+
+                    if (questions.length > 0) {
+                        await testService.saveQuestions(questions);
+                        console.log('✅ Questions saved to Firebase');
+                    }
+
+                    console.log('✅ Test fully synced to Firebase:', testId);
+                } catch (error) {
+                    console.error('❌ Failed to sync test to Firebase:', error);
+                    throw error; // Re-throw so UI can handle it
+                }
+            },
+
+            loadFromFirebase: async () => {
+                console.log('📥 Starting loadFromFirebase...');
+                set({ isLoading: true });
+                try {
+                    // Load all tests from Firebase
+                    console.log('🔍 Fetching tests from Firestore...');
+                    const firebaseTests = await testService.getAllTests();
+                    console.log('📊 Tests received from Firebase:', firebaseTests.length, firebaseTests.map(t => ({ id: t.id, name: t.name, status: t.status })));
+
+                    // Convert TestRecord to Test format
+                    const mergedTests: Test[] = firebaseTests.map((t) => ({
+                        id: t.id,
+                        name: t.name,
+                        adminPassword: '', // Not stored in Firebase for security
+                        status: t.status as TestStatus,
+                        settings: t.settings,
+                        urlAlias: t.urlAlias,
+                        scheduledStart: t.scheduledStart,
+                        scheduledEnd: t.scheduledEnd,
+                        createdAt: t.createdAt,
+                        updatedAt: t.updatedAt,
+                    }));
+
+                    // Also load questions for each test
+                    let allQuestions: Question[] = [];
+                    for (const test of mergedTests) {
+                        const testQuestions = await testService.getQuestionsForTest(test.id);
+                        const convertedQuestions: Question[] = testQuestions.map((q) => ({
+                            id: q.id,
+                            testId: q.testId,
+                            type: q.type as Question['type'],
+                            text: q.text,
+                            options: q.options,
+                            correctAnswer: q.correctAnswer,
+                            explanation: q.explanation,
+                            difficulty: q.difficulty as Question['difficulty'],
+                            topic: q.topic,
+                            points: q.points,
+                            negativeMarking: q.negativeMarking,
+                            order: q.order,
+                            createdAt: q.createdAt,
+                            updatedAt: q.updatedAt,
+                        }));
+                        allQuestions = [...allQuestions, ...convertedQuestions];
+                    }
+
+                    // Merge with local tests (local takes precedence for drafts)
+                    const { tests: localTests, questions: localQuestions } = get();
+
+                    // Keep local draft tests that aren't in Firebase
+                    const localDrafts = localTests.filter(
+                        (lt) => lt.status === 'draft' && !mergedTests.find((ft) => ft.id === lt.id)
+                    );
+
+                    // Merge: all Firebase tests + local drafts not in Firebase
+                    const finalTests = [...mergedTests, ...localDrafts];
+
+                    // Merge questions: Firebase questions + local questions for draft tests
+                    const draftTestIds = localDrafts.map((t) => t.id);
+                    const localDraftQuestions = localQuestions.filter((q) => draftTestIds.includes(q.testId));
+                    const finalQuestions = [...allQuestions, ...localDraftQuestions];
+
+                    set({
+                        tests: finalTests,
+                        questions: finalQuestions,
+                        isLoading: false,
+                    });
+
+                    console.log('✅ Tests loaded from Firebase:', mergedTests.length);
+                } catch (error) {
+                    console.error('Failed to load tests from Firebase:', error);
+                    set({ isLoading: false });
+                }
             },
         }),
         {

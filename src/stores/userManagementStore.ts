@@ -57,9 +57,10 @@ export const useUserManagementStore = create<UserManagementState>()(
                     });
 
                     set({ users: loadedUsers, isLoading: false });
-                } catch (error: any) {
-                    console.error('Failed to load users:', error);
-                    set({ error: error.message, isLoading: false });
+                } catch (error) {
+                    const err = error as Error;
+                    console.error('Failed to load users:', err);
+                    set({ error: err.message, isLoading: false });
                 }
             },
 
@@ -74,9 +75,10 @@ export const useUserManagementStore = create<UserManagementState>()(
                             u.id === userId ? { ...u, role } : u
                         ),
                     });
-                } catch (error: any) {
-                    console.error('Failed to update user role:', error);
-                    set({ error: error.message });
+                } catch (error) {
+                    const err = error as Error;
+                    console.error('Failed to update user role:', err);
+                    set({ error: err.message });
                 }
             },
 
@@ -87,9 +89,10 @@ export const useUserManagementStore = create<UserManagementState>()(
 
                     const { users } = get();
                     set({ users: users.filter(u => u.id !== userId) });
-                } catch (error: any) {
-                    console.error('Failed to delete user:', error);
-                    set({ error: error.message });
+                } catch (error) {
+                    const err = error as Error;
+                    console.error('Failed to delete user:', err);
+                    set({ error: err.message });
                 }
             },
 

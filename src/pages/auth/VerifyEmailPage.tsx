@@ -62,9 +62,10 @@ const VerifyEmailPage: React.FC = () => {
             await sendEmailVerification(user);
             showToast('success', 'Verification email sent! Please check your inbox.');
             setCountdown(60); // 60 second cooldown
-        } catch (error: any) {
-            console.error('Error sending verification email:', error);
-            if (error.code === 'auth/too-many-requests') {
+        } catch (error) {
+            const err = error as any;
+            console.error('Error sending verification email:', err);
+            if (err.code === 'auth/too-many-requests') {
                 showToast('error', 'Too many requests. Please try again later.');
             } else {
                 showToast('error', 'Failed to send verification email. Please try again.');
@@ -87,8 +88,8 @@ const VerifyEmailPage: React.FC = () => {
             } else {
                 showToast('info', 'Email not verified yet. Please check your inbox.');
             }
-        } catch (error) {
-            console.error('Error checking verification:', error);
+        } catch (_error) {
+            console.error('Error checking verification:', _error);
             showToast('error', 'Failed to check verification status.');
         } finally {
             setIsChecking(false);

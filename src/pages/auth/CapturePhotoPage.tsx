@@ -31,6 +31,7 @@ const CapturePhotoPage: React.FC = () => {
 
     // Initialize camera
     useEffect(() => {
+        let currentStream: MediaStream | null = null;
         const startCamera = async () => {
             try {
                 const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -40,6 +41,7 @@ const CapturePhotoPage: React.FC = () => {
                         facingMode: 'user'
                     }
                 });
+                currentStream = mediaStream;
                 setStream(mediaStream);
                 if (videoRef.current) {
                     videoRef.current.srcObject = mediaStream;
@@ -48,11 +50,12 @@ const CapturePhotoPage: React.FC = () => {
                     };
                 }
                 setCameraError(null);
-            } catch (error: any) {
-                console.error('Camera error:', error);
-                if (error.name === 'NotAllowedError') {
+            } catch (error) {
+                const err = error as Error;
+                console.error('Camera error:', err);
+                if (err.name === 'NotAllowedError') {
                     setCameraError('Camera access denied. Please allow camera access to take your profile photo.');
-                } else if (error.name === 'NotFoundError') {
+                } else if (err.name === 'NotFoundError') {
                     setCameraError('No camera found. Please connect a camera and try again.');
                 } else {
                     setCameraError('Failed to access camera. Please check your camera settings.');
@@ -64,8 +67,8 @@ const CapturePhotoPage: React.FC = () => {
 
         // Cleanup
         return () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
             }
         };
     }, []);

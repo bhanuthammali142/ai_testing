@@ -2,7 +2,8 @@
 // Publish & Share Page
 // ============================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Share2,
     Link2,
@@ -16,22 +17,82 @@ import {
     Clock,
     Globe,
     Mail,
-    Key
+    Key,
+    Plus
 } from 'lucide-react';
 import { useTestStore, useUIStore } from '../../stores';
 import { TestStatus } from '../../types';
 
 const PublishPage: React.FC = () => {
-    const { currentTest, updateTestStatus, updateTestAlias } = useTestStore();
+    const { currentTest, updateTestStatus, updateTestAlias, syncTestToFirebase } = useTestStore();
     const { showToast } = useUIStore();
 
     const [urlAlias, setUrlAlias] = useState(currentTest?.urlAlias || '');
     const [copied, setCopied] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    // Auto-select first test if none selected but tests exist
+    const { tests, setCurrentTest } = useTestStore();
+
+    useEffect(() => {
+        if (!currentTest && tests.length > 0) {
+            setCurrentTest(tests[0]);
+        }
+    }, [currentTest, tests, setCurrentTest]);
+
+    // Auto-sync to Firebase when test is open
+    useEffect(() => {
+        const syncIfOpen = async () => {
+            if (currentTest && currentTest.status === 'open') {
+                try {
+                    await syncTestToFirebase(currentTest.id);
+                    console.log('✅ Auto-synced open test to Firebase');
+                } catch (_error) {
+                    console.error('Failed to auto-sync:', _error);
+                }
+            }
+        };
+        syncIfOpen();
+    }, [currentTest, syncTestToFirebase]);
+
+    // Manual sync function
+    const handleManualSync = async () => {
+        if (!currentTest) return;
+        setIsSyncing(true);
+        try {
+            await syncTestToFirebase(currentTest.id);
+            showToast('success', 'Test synced to cloud successfully!');
+        } catch (_error) {
+            showToast('error', 'Failed to sync test. Please try again.');
+        }
+        setIsSyncing(false);
+    };
 
     if (!currentTest) {
         return (
-            <div className="text-center py-20">
-                <p className="text-slate-400">No test selected.</p>
+            <div className="max-w-2xl mx-auto text-center py-20 animate-fade-in">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center">
+                    <Share2 className="w-10 h-10 text-primary-400" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-3">No Test Selected</h2>
+                <p className="text-slate-400 mb-8">
+                    Create a new test or select an existing one from the dashboard to publish and share.
+                </p>
+                <div className="flex items-center justify-center gap-4">
+                    <Link
+                        to="/admin"
+                        className="glass-button flex items-center gap-2"
+                    >
+                        Go to Dashboard
+                    </Link>
+                    <Link
+                        to="/admin/questions"
+                        className="gradient-button flex items-center gap-2"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Create New Test
+                    </Link>
+                </div>
             </div>
         );
     }
@@ -69,8 +130,14 @@ const PublishPage: React.FC = () => {
         },
     ];
 
-    const handleStatusChange = (status: TestStatus) => {
+    const handleStatusChange = async (status: TestStatus) => {
         updateTestStatus(currentTest.id, status);
+
+        // Sync to Firebase when publishing (status = 'open')
+        if (status === 'open') {
+            await syncTestToFirebase(currentTest.id);
+        }
+
         showToast('success', `Test status changed to ${status}`);
     };
 
@@ -140,6 +207,37 @@ const PublishPage: React.FC = () => {
                         );
                     })}
                 </div>
+
+                {/* Sync to Cloud Button */}
+                {currentTest.status === 'open' && (
+                    <div className="mt-4 p-4 bg-primary-500/10 border border-primary-500/20 rounded-xl">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-white font-medium">Sync to Cloud</p>
+                                <p className="text-sm text-slate-400">
+                                    Make this test visible to all students
+                                </p>
+                            </div>
+                            <button
+                                onClick={handleManualSync}
+                                disabled={isSyncing}
+                                className="gradient-button flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isSyncing ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Syncing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Share2 className="w-4 h-4" />
+                                        Sync Now
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Schedule Info */}
                 {currentTest.status === 'scheduled' && (

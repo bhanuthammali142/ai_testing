@@ -15,10 +15,12 @@ import {
     IdCard,
     Mail,
     Shield,
-    XCircle
+    XCircle,
+    Loader2
 } from 'lucide-react';
 import { useTestStore, useAttemptStore, useUIStore, useUserAuthStore, useExamAssignmentStore } from '../../stores';
-import { Candidate } from '../../types';
+import { Candidate, Test, Question } from '../../types';
+import { testService, TestRecord } from '../../services/firebaseService';
 
 const ExamEntryPage: React.FC = () => {
     // 1. Get query params
@@ -26,7 +28,7 @@ const ExamEntryPage: React.FC = () => {
     const navigate = useNavigate();
 
     // 2. Global Stores
-    const { tests, setCurrentTest, getQuestionsForTest } = useTestStore();
+    const { setCurrentTest, setQuestionsForTest } = useTestStore();
     const { startAttempt, getAttemptsForTest, setCurrentAttempt } = useAttemptStore();
     const { showToast } = useUIStore();
     const { user, isAuthenticated } = useUserAuthStore();
@@ -35,33 +37,12 @@ const ExamEntryPage: React.FC = () => {
         hasUserAttemptedExam
     } = useExamAssignmentStore();
 
-    // 3. Derived State (Reactive to store changes)
-    const test = useMemo(() => {
-        if (!testId) return null;
-        return tests.find(t => t.id === testId || t.urlAlias === testId);
-    }, [tests, testId]);
+    // 3. Local State for Firebase-loaded test
+    const [test, setTest] = useState<Test | null>(null);
+    const [questions, setQuestions] = useState<Question[]>([]);
+    const [isLoadingTest, setIsLoadingTest] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
-    const questions = useMemo(() => {
-        if (!test) return [];
-        return getQuestionsForTest(test.id);
-    }, [test, getQuestionsForTest]);
-
-    // Check if user has access and hasn't attempted
-    const hasAccess = useMemo(() => {
-        if (!user || !test) return false;
-        // Admins can always preview
-        if (user.role === 'admin') return true;
-        // Check if exam is assigned to user
-        return isExamAssignedToUser(test.id, user.id);
-    }, [user, test, isExamAssignedToUser]);
-
-    const alreadyAttempted = useMemo(() => {
-        if (!user || !test) return false;
-        if (user.role === 'admin') return false; // Admins can always preview
-        return hasUserAttemptedExam(test.id, user.id);
-    }, [user, test, hasUserAttemptedExam]);
-
-    // 4. Local State
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: user?.name || '',
@@ -71,13 +52,104 @@ const ExamEntryPage: React.FC = () => {
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // 5. Side Effects
-    // Set current test when identified
+    // 4. Load test directly from Firebase
     useEffect(() => {
-        if (test) {
-            setCurrentTest(test);
-        }
-    }, [test, setCurrentTest]);
+        const loadTestFromFirebase = async () => {
+            if (!testId) {
+                setLoadError('No test ID provided');
+                setIsLoadingTest(false);
+                return;
+            }
+
+            console.log('📥 Loading test from Firebase:', testId);
+            setIsLoadingTest(true);
+            setLoadError(null);
+
+            try {
+                // Fetch all tests from Firebase
+                console.log('🔍 Calling testService.getAllTests()...');
+                const firebaseTests = await testService.getAllTests();
+                console.log('📊 Tests from Firebase:', firebaseTests.length, firebaseTests);
+
+                if (firebaseTests.length === 0) {
+                    console.log('⚠️ No tests found in Firebase');
+                    setLoadError('No tests available. Please ask your instructor to publish the exam.');
+                    setIsLoadingTest(false);
+                    return;
+                }
+
+                // Find the test by ID or URL alias
+                console.log('🔍 Looking for test with ID or alias:', testId);
+                const foundTest = firebaseTests.find(
+                    (t: TestRecord) => t.id === testId || t.urlAlias === testId
+                );
+
+                if (!foundTest) {
+                    console.log('❌ Test not found. Available tests:', firebaseTests.map(t => ({ id: t.id, name: t.name, alias: t.urlAlias })));
+                    setLoadError(`Test "${testId}" not found. Please check the link.`);
+                    setIsLoadingTest(false);
+                    return;
+                }
+
+                console.log('✅ Test found:', foundTest.name, foundTest);
+
+                // Convert TestRecord to Test format
+                const testData: Test = {
+                    id: foundTest.id,
+                    name: foundTest.name,
+                    adminPassword: '',
+                    status: foundTest.status as Test['status'],
+                    settings: foundTest.settings,
+                    urlAlias: foundTest.urlAlias,
+                    scheduledStart: foundTest.scheduledStart,
+                    scheduledEnd: foundTest.scheduledEnd,
+                    createdAt: foundTest.createdAt,
+                    updatedAt: foundTest.updatedAt,
+                };
+
+                setTest(testData);
+                setCurrentTest(testData);
+
+                // Load questions for this test
+                console.log('📥 Loading questions for test:', foundTest.id);
+                const testQuestions = await testService.getQuestionsForTest(foundTest.id);
+                console.log('📋 Questions loaded:', testQuestions.length);
+
+                const convertedQuestions: Question[] = testQuestions.map((q) => ({
+                    id: q.id,
+                    testId: q.testId,
+                    type: q.type as Question['type'],
+                    text: q.text,
+                    options: q.options,
+                    correctAnswer: q.correctAnswer,
+                    explanation: q.explanation,
+                    difficulty: q.difficulty as Question['difficulty'],
+                    topic: q.topic,
+                    points: q.points,
+                    negativeMarking: q.negativeMarking,
+                    order: q.order,
+                    createdAt: q.createdAt,
+                    updatedAt: q.updatedAt,
+                }));
+
+                // Store questions in local state for this component
+                setQuestions(convertedQuestions);
+
+                // Also sync to testStore so ExamTakePage can access them
+                setQuestionsForTest(foundTest.id, convertedQuestions);
+
+                setLoadError(null);
+            } catch (error: any) {
+                console.error('❌ Failed to load test:', error);
+                const errorMessage = error?.message || error?.code || 'Unknown error';
+                setLoadError(`Failed to load test: ${errorMessage}`);
+            } finally {
+                setIsLoadingTest(false);
+            }
+        };
+
+        loadTestFromFirebase();
+    }, [testId, setCurrentTest, setQuestionsForTest]);
 
     // Pre-fill form with user data
     useEffect(() => {
@@ -89,6 +161,21 @@ const ExamEntryPage: React.FC = () => {
             }));
         }
     }, [user]);
+
+    // Computed values
+    const hasAccess = useMemo(() => {
+        if (!user || !test) return false;
+        if (user.role === 'admin') return true;
+        // For open tests, all authenticated users have access
+        if (test.status === 'open') return true;
+        return isExamAssignedToUser(test.id, user.id);
+    }, [user, test, isExamAssignedToUser]);
+
+    const alreadyAttempted = useMemo(() => {
+        if (!user || !test) return false;
+        if (user.role === 'admin') return false;
+        return hasUserAttemptedExam(test.id, user.id);
+    }, [user, test, hasUserAttemptedExam]);
 
     // 6. Loading / Error States
     if (!isAuthenticated || !user) {
@@ -111,21 +198,45 @@ const ExamEntryPage: React.FC = () => {
         );
     }
 
-    if (!test) {
+    // Show loading while fetching test from Firebase
+    if (isLoadingTest) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
+                <div className="glass-card p-8 max-w-md text-center animate-fade-in">
+                    <Loader2 className="w-16 h-16 text-primary-400 mx-auto mb-4 animate-spin" />
+                    <h2 className="text-2xl font-bold text-white mb-2">Loading Test...</h2>
+                    <p className="text-slate-400">
+                        Please wait while we load the exam details.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Show error if test not found
+    if (loadError || !test) {
         return (
             <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
                 <div className="glass-card p-8 max-w-md text-center animate-fade-in">
                     <AlertCircle className="w-16 h-16 text-danger-400 mx-auto mb-4" />
                     <h2 className="text-2xl font-bold text-white mb-2">Test Not Found</h2>
-                    <p className="text-slate-400 mb-6">
-                        We couldn't find the test you're looking for. It may have been removed or the link is incorrect.
+                    <p className="text-slate-400 mb-6 text-sm">
+                        {loadError || "We couldn't find the test you're looking for."}
                     </p>
-                    <button
-                        onClick={() => navigate(user.role === 'admin' ? '/admin' : '/dashboard')}
-                        className="gradient-button px-6"
-                    >
-                        Go to Dashboard
-                    </button>
+                    <div className="flex flex-col gap-3">
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="glass-button w-full"
+                        >
+                            Retry
+                        </button>
+                        <button
+                            onClick={() => navigate(user.role === 'admin' ? '/admin' : '/dashboard')}
+                            className="gradient-button w-full"
+                        >
+                            Go to Dashboard
+                        </button>
+                    </div>
                 </div>
             </div>
         );

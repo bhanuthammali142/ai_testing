@@ -2,7 +2,7 @@
 // Student Dashboard Page
 // ============================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     User,
@@ -16,32 +16,97 @@ import {
     LogOut,
     FileText,
     Award,
-    Calendar
+    Calendar,
+    RefreshCw
 } from 'lucide-react';
-import { useUserAuthStore, useTestStore, useExamAssignmentStore, useUIStore } from '../../stores';
+import { useUserAuthStore, useExamAssignmentStore, useUIStore } from '../../stores';
 import { ExamWithStatus } from '../../types/auth';
+import { testService, TestRecord } from '../../services/firebaseService';
 
 const StudentDashboard: React.FC = () => {
     const navigate = useNavigate();
     const { user, signOutUser } = useUserAuthStore();
-    const { tests } = useTestStore();
-    const { getExamsWithStatusForUser, loadAssignments, hasUserAttemptedExam } = useExamAssignmentStore();
+    const { loadAssignments, hasUserAttemptedExam, getAssignmentsForUser } = useExamAssignmentStore();
     const { showToast } = useUIStore();
 
     const [exams, setExams] = useState<ExamWithStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
+    // Function to load exams directly from Firebase
+    const loadExamsFromFirebase = useCallback(async () => {
+        if (!user) {
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            console.log('📥 Fetching tests directly from Firebase...');
+
+            // Directly call Firebase service - no middleware
+            const firebaseTests = await testService.getAllTests();
+            console.log('📊 Tests from Firebase:', firebaseTests.length, firebaseTests);
+
+            // Filter for open tests only
+            const openTests = firebaseTests.filter((t: TestRecord) => t.status === 'open');
+            console.log('📋 Open tests:', openTests.length, openTests.map((t: TestRecord) => t.name));
+
+            // Load exam assignments
+            await loadAssignments();
+            const userAssignments = getAssignmentsForUser(user.id);
+
+            // Convert to ExamWithStatus format
+            const examsWithStatus: ExamWithStatus[] = openTests.map((test: TestRecord) => {
+                const assignment = userAssignments.find(a => a.examId === test.id);
+                const attempted = assignment?.attempted || false;
+
+                let status: 'available' | 'attempted' | 'expired' = 'available';
+
+                if (attempted) {
+                    status = 'attempted';
+                } else if (test.scheduledEnd && new Date(test.scheduledEnd) < new Date()) {
+                    status = 'expired';
+                }
+
+                return {
+                    id: test.id,
+                    title: test.name,
+                    duration: test.settings?.accessControl?.timeLimitMinutes || 60,
+                    status,
+                    scheduledStart: test.scheduledStart,
+                    scheduledEnd: test.scheduledEnd,
+                    attemptedAt: assignment?.attemptedAt,
+                    score: assignment?.score,
+                } as ExamWithStatus;
+            });
+
+            console.log('✅ Exams ready to display:', examsWithStatus.length);
+            setExams(examsWithStatus);
+            setLoadError(null);
+        } catch (error) {
+            console.error('❌ Failed to load tests from Firebase:', error);
+            setLoadError('Failed to load exams. Please check your internet connection.');
+        }
+    }, [user, loadAssignments, getAssignmentsForUser]);
+
+    // Load on mount
     useEffect(() => {
         const loadData = async () => {
-            if (user) {
-                await loadAssignments();
-                const userExams = getExamsWithStatusForUser(user.id, tests);
-                setExams(userExams);
-            }
+            setIsLoading(true);
+            await loadExamsFromFirebase();
             setIsLoading(false);
         };
         loadData();
-    }, [user, tests]);
+    }, [loadExamsFromFirebase]);
+
+    // Manual refresh function
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        await loadExamsFromFirebase();
+        setIsRefreshing(false);
+        showToast('success', 'Exams refreshed!');
+    };
 
     const handleLogout = async () => {
         await signOutUser();
@@ -231,15 +296,39 @@ const StudentDashboard: React.FC = () => {
                             <div className="w-12 h-12 mx-auto mb-4 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
                             <p className="text-slate-400">Loading your exams...</p>
                         </div>
+                    ) : loadError ? (
+                        <div className="glass-card p-12 text-center">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-danger-500/20 flex items-center justify-center">
+                                <AlertCircle className="w-8 h-8 text-danger-400" />
+                            </div>
+                            <h4 className="text-lg font-semibold text-white mb-2">Failed to Load Exams</h4>
+                            <p className="text-slate-400 mb-4">{loadError}</p>
+                            <button
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                                className="gradient-button flex items-center gap-2 mx-auto"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                {isRefreshing ? 'Refreshing...' : 'Try Again'}
+                            </button>
+                        </div>
                     ) : exams.length === 0 ? (
                         <div className="glass-card p-12 text-center">
                             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-800 flex items-center justify-center">
                                 <FileText className="w-8 h-8 text-slate-600" />
                             </div>
                             <h4 className="text-lg font-semibold text-white mb-2">No Exams Available</h4>
-                            <p className="text-slate-400">
+                            <p className="text-slate-400 mb-4">
                                 You don't have any exams assigned yet. Check back later or contact your instructor.
                             </p>
+                            <button
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                                className="glass-button text-sm flex items-center gap-2 mx-auto"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                            </button>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

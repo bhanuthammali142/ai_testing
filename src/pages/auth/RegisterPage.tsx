@@ -76,15 +76,47 @@ const RegisterPage: React.FC = () => {
 
     // Initialize camera when on photo step
     useEffect(() => {
-        if (currentStep === 'photo' && !capturedImage) {
-            startCamera();
-        }
-        return () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+        let currentStream: MediaStream | null = null;
+        const startCameraLocal = async () => {
+            try {
+                const mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }
+                });
+                currentStream = mediaStream;
+                setStream(mediaStream);
+                if (videoRef.current) {
+                    videoRef.current.srcObject = mediaStream;
+                    videoRef.current.onloadedmetadata = () => {
+                        setIsCameraReady(true);
+                    };
+                }
+                setCameraError(null);
+            } catch (error) {
+                const err = error as Error;
+                console.error('Camera error:', err);
+                if (err.name === 'NotAllowedError') {
+                    setCameraError('Camera access denied. Please allow camera access to take your profile photo.');
+                } else if (err.name === 'NotFoundError') {
+                    setCameraError('No camera found. Please connect a camera and try again.');
+                } else {
+                    setCameraError('Failed to access camera. Please check your camera settings.');
+                }
             }
         };
-    }, [currentStep]);
+
+        if (currentStep === 'photo' && !capturedImage) {
+            startCameraLocal();
+        }
+        return () => {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [currentStep, capturedImage]);
 
     const startCamera = async () => {
         try {
@@ -103,11 +135,12 @@ const RegisterPage: React.FC = () => {
                 };
             }
             setCameraError(null);
-        } catch (error: any) {
-            console.error('Camera error:', error);
-            if (error.name === 'NotAllowedError') {
+        } catch (error) {
+            const err = error as Error;
+            console.error('Camera error:', err);
+            if (err.name === 'NotAllowedError') {
                 setCameraError('Camera access denied. Please allow camera access to take your profile photo.');
-            } else if (error.name === 'NotFoundError') {
+            } else if (err.name === 'NotFoundError') {
                 setCameraError('No camera found. Please connect a camera and try again.');
             } else {
                 setCameraError('Failed to access camera. Please check your camera settings.');
@@ -218,16 +251,17 @@ const RegisterPage: React.FC = () => {
             setCurrentStep('complete');
             showToast('success', 'Registration successful! Please verify your email.');
 
-        } catch (error: any) {
-            console.error('Registration error:', error);
-            if (error.code === 'auth/email-already-in-use') {
+        } catch (error) {
+            const err = error as any; // Using any for Firebase error codes briefly
+            console.error('Registration error:', err);
+            if (err.code === 'auth/email-already-in-use') {
                 showToast('error', 'This email is already registered. Please login instead.');
-            } else if (error.code === 'auth/weak-password') {
+            } else if (err.code === 'auth/weak-password') {
                 showToast('error', 'Password is too weak. Please use a stronger password.');
-            } else if (error.code === 'auth/operation-not-allowed') {
+            } else if (err.code === 'auth/operation-not-allowed') {
                 showToast('error', 'Email/Password registration is not enabled. Please enable it in Firebase Console.');
             } else {
-                showToast('error', error.message || 'Registration failed. Please try again.');
+                showToast('error', err.message || 'Registration failed. Please try again.');
             }
         } finally {
             setIsLoading(false);

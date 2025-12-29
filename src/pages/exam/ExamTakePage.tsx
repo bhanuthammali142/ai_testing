@@ -49,7 +49,7 @@ const ExamTakePage: React.FC = () => {
         }
 
         return testQuestions.sort((a, b) => a.order - b.order);
-    }, [currentTest?.id, allQuestions]);
+    }, [currentTest, currentTest?.id, allQuestions]);
 
     // Shuffle questions once when test changes or questions load
     useEffect(() => {
@@ -72,7 +72,7 @@ const ExamTakePage: React.FC = () => {
                 setShuffledQuestions([...questions]);
             }
         }
-    }, [questions, currentTest?.id, currentTest?.settings.questionBehavior.randomizeOrder]);
+    }, [questions, currentTest, currentTest?.id, currentTest?.settings.questionBehavior.randomizeOrder]);
 
     const currentQuestion = shuffledQuestions[currentIndex];
     const totalQuestions = shuffledQuestions.length;

@@ -153,8 +153,8 @@ export const useExamAssignmentStore = create<ExamAssignmentState>()(
                         attemptedAt: serverTimestamp(),
                         score: score || null,
                     });
-                } catch (error) {
-                    console.error('Failed to update assignment in Firestore:', error);
+                } catch (_error) {
+                    console.error('Failed to update assignment in Firestore:', _error);
                 }
             },
 
@@ -241,9 +241,10 @@ export const useExamAssignmentStore = create<ExamAssignmentState>()(
                     });
 
                     set({ assignments: Array.from(mergedMap.values()), isLoading: false });
-                } catch (error: any) {
-                    console.error('Failed to load assignments:', error);
-                    set({ error: error.message, isLoading: false });
+                } catch (error) {
+                    const err = error as Error;
+                    console.error('Failed to load assignments:', err);
+                    set({ error: err.message, isLoading: false });
                 }
             },
 

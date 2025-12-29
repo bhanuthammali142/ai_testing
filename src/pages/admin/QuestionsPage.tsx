@@ -2,7 +2,7 @@
 // Enhanced Question Management Page
 // ============================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Plus,
     Sparkles,
@@ -58,7 +58,7 @@ const difficultyLevels: { value: Difficulty; label: string; color: string }[] = 
 ];
 
 const QuestionsPage: React.FC = () => {
-    const { currentTest, getQuestionsForTest, addQuestion, updateQuestion, deleteQuestion, duplicateQuestion } = useTestStore();
+    const { currentTest, tests, setCurrentTest, createTest, getQuestionsForTest, addQuestion, updateQuestion, deleteQuestion, duplicateQuestion } = useTestStore();
     const {
         aiQuestions,
         generateQuestions,
@@ -122,10 +122,31 @@ const QuestionsPage: React.FC = () => {
     // Get intelligent generator subjects
     const intelligentSubjects = questionGenerator.getSubjects();
 
+    // Auto-create or auto-select test if needed
+    useEffect(() => {
+        if (!currentTest) {
+            if (tests.length > 0) {
+                // Auto-select the first test
+                setCurrentTest(tests[0]);
+            } else {
+                // Auto-create a new test
+                const newTest = createTest('My First Test', 'admin123');
+                setCurrentTest(newTest);
+            }
+        }
+    }, [currentTest, tests, setCurrentTest, createTest]);
+
     if (!currentTest) {
         return (
-            <div className="text-center py-20">
-                <p className="text-slate-400">No test selected.</p>
+            <div className="max-w-2xl mx-auto text-center py-20 animate-fade-in">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center">
+                    <FileQuestion className="w-10 h-10 text-primary-400" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-3">Setting Up Your Test...</h2>
+                <p className="text-slate-400 mb-8">
+                    Please wait while we prepare your test environment.
+                </p>
+                <div className="w-8 h-8 mx-auto rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
             </div>
         );
     }
@@ -360,7 +381,7 @@ const QuestionsPage: React.FC = () => {
                 questionType: aiQuestionType,
             });
             showToast('success', `Generated ${aiQuestionCount} questions!`);
-        } catch (error) {
+        } catch (_error) {
             showToast('error', 'Failed to generate questions');
         }
     };

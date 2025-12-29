@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
     BarChart3,
     Users,
@@ -16,7 +17,8 @@ import {
     Cloud,
     CloudOff,
     RefreshCw,
-    Loader2
+    Loader2,
+    Plus
 } from 'lucide-react';
 import {
     BarChart,
@@ -62,7 +64,7 @@ const ResultsPage: React.FC = () => {
         });
 
         // Set up real-time subscription
-        const unsubscribe = attemptService.subscribeToAttempts(currentTest.id, (_firebaseAttempts) => {
+        const unsubscribe = attemptService.subscribeToAttempts(currentTest.id, (__firebaseAttempts) => {
             // Instead of reloading EVERYTHING again, we can just log success 
             // the onSnapshot logic in attemptService already does its thing
             // if we wanted to be more reactive we'd move this into the store
@@ -76,10 +78,40 @@ const ResultsPage: React.FC = () => {
         };
     }, [currentTest?.id, loadFromFirebase]);
 
+    // Auto-select first test if none selected but tests exist
+    const { tests, setCurrentTest } = useTestStore();
+
+    useEffect(() => {
+        if (!currentTest && tests.length > 0) {
+            setCurrentTest(tests[0]);
+        }
+    }, [currentTest, tests, setCurrentTest]);
+
     if (!currentTest) {
         return (
-            <div className="text-center py-20">
-                <p className="text-slate-400">No test selected.</p>
+            <div className="max-w-2xl mx-auto text-center py-20 animate-fade-in">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center">
+                    <BarChart3 className="w-10 h-10 text-primary-400" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-3">No Test Selected</h2>
+                <p className="text-slate-400 mb-8">
+                    Create a new test or select an existing one from the dashboard to view results.
+                </p>
+                <div className="flex items-center justify-center gap-4">
+                    <Link
+                        to="/admin"
+                        className="glass-button flex items-center gap-2"
+                    >
+                        Go to Dashboard
+                    </Link>
+                    <Link
+                        to="/admin/questions"
+                        className="gradient-button flex items-center gap-2"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Create New Test
+                    </Link>
+                </div>
             </div>
         );
     }
@@ -104,7 +136,7 @@ const ResultsPage: React.FC = () => {
         try {
             await syncWithFirebase();
             showToast('success', 'Results synced to Firebase cloud!');
-        } catch (error) {
+        } catch (_error) {
             showToast('error', 'Failed to sync to cloud');
         }
     };
@@ -113,7 +145,7 @@ const ResultsPage: React.FC = () => {
         try {
             await loadFromFirebase(currentTest.id);
             showToast('success', 'Results refreshed from cloud!');
-        } catch (error) {
+        } catch (_error) {
             showToast('error', 'Failed to load from cloud');
         }
     };

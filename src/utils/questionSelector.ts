@@ -159,7 +159,7 @@ export function selectQuestions(
     }
 
     // Filter questions
-    let pool = filterQuestions(allQuestions, filter);
+    const pool = filterQuestions(allQuestions, filter);
     const availablePool = pool.length;
 
     // Check if we have enough questions

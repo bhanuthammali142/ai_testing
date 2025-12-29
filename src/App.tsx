@@ -46,7 +46,7 @@ const AuthInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) 
     useEffect(() => {
         initializeAuth();
         loadExamAssignments();
-    }, []);
+    }, [initializeAuth, loadExamAssignments]);
 
     return <>{children}</>;
 };

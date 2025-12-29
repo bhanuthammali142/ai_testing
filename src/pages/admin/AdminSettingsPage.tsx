@@ -34,12 +34,7 @@ const AdminSettingsPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'admins' | 'users'>('admins');
 
     // Load admin emails from Firestore
-    useEffect(() => {
-        loadAdminEmails();
-        loadUsers();
-    }, []);
-
-    const loadAdminEmails = async () => {
+    const loadAdminEmails = React.useCallback(async () => {
         setIsLoading(true);
         try {
             const adminEmailsRef = collection(db, 'admin_emails');
@@ -80,7 +75,12 @@ const AdminSettingsPage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [showToast]);
+
+    useEffect(() => {
+        loadAdminEmails();
+        loadUsers();
+    }, [loadAdminEmails, loadUsers]);
 
     const handleAddAdminEmail = async () => {
         const email = newEmail.trim().toLowerCase();

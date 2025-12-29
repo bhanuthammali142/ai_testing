@@ -155,10 +155,11 @@ export const useUserAuthStore = create<UserAuthState>()(
                     });
 
                     return true;
-                } catch (error: any) {
-                    console.error('Google sign-in error:', error);
+                } catch (error) {
+                    const err = error as any;
+                    console.error('Google sign-in error:', err);
                     set({
-                        error: error.message || 'Failed to sign in with Google',
+                        error: err.message || 'Failed to sign in with Google',
                         isLoading: false,
                         isAuthenticated: false,
                     });
@@ -175,9 +176,10 @@ export const useUserAuthStore = create<UserAuthState>()(
                         currentTestId: null,
                         adminPassword: null,
                     });
-                } catch (error: any) {
-                    console.error('Sign out error:', error);
-                    set({ error: error.message || 'Failed to sign out' });
+                } catch (error) {
+                    const err = error as any;
+                    console.error('Sign out error:', err);
+                    set({ error: err.message || 'Failed to sign out' });
                 }
             },
 
@@ -233,8 +235,8 @@ export const useUserAuthStore = create<UserAuthState>()(
                                     isLoading: false,
                                 });
                             }
-                        } catch (error) {
-                            console.error('Auth state change error:', error);
+                        } catch (_error) {
+                            console.error('Auth state change error:', _error);
                             set({ isLoading: false, isAuthenticated: false });
                         }
                     } else {

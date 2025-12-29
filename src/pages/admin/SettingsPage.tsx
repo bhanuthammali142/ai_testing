@@ -2,7 +2,8 @@
 // Test Settings Page
 // ============================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
     FileQuestion,
     Eye,
@@ -11,7 +12,9 @@ import {
     Clock,
     Users,
     Save,
-    RotateCcw
+    RotateCcw,
+    Plus,
+    Settings
 } from 'lucide-react';
 import { useTestStore, useUIStore } from '../../stores';
 import { TestSettings } from '../../types';
@@ -29,10 +32,40 @@ const SettingsPage: React.FC = () => {
     );
     const [hasChanges, setHasChanges] = useState(false);
 
+    // Auto-select first test if none selected but tests exist
+    const { tests, setCurrentTest } = useTestStore();
+
+    useEffect(() => {
+        if (!currentTest && tests.length > 0) {
+            setCurrentTest(tests[0]);
+        }
+    }, [currentTest, tests, setCurrentTest]);
+
     if (!currentTest) {
         return (
-            <div className="text-center py-20">
-                <p className="text-slate-400">No test selected.</p>
+            <div className="max-w-2xl mx-auto text-center py-20 animate-fade-in">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center">
+                    <Settings className="w-10 h-10 text-primary-400" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-3">No Test Selected</h2>
+                <p className="text-slate-400 mb-8">
+                    Create a new test or select an existing one from the dashboard to configure settings.
+                </p>
+                <div className="flex items-center justify-center gap-4">
+                    <Link
+                        to="/admin"
+                        className="glass-button flex items-center gap-2"
+                    >
+                        Go to Dashboard
+                    </Link>
+                    <Link
+                        to="/admin/questions"
+                        className="gradient-button flex items-center gap-2"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Create New Test
+                    </Link>
+                </div>
             </div>
         );
     }

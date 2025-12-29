@@ -177,7 +177,7 @@ const AdminDashboardPage: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useUserAuthStore();
     const { users, loadUsers, isLoading: usersLoading } = useUserManagementStore();
-    const { tests, updateTestStatus } = useTestStore();
+    const { tests, updateTestStatus, syncTestToFirebase } = useTestStore();
     const { assignExamToAllUsers, getAssignmentsForExam } = useExamAssignmentStore();
     const { showToast } = useUIStore();
 
@@ -186,7 +186,7 @@ const AdminDashboardPage: React.FC = () => {
 
     useEffect(() => {
         loadUsers();
-    }, []);
+    }, [loadUsers]);
 
     // Redirect if not admin
     if (user && user.role !== 'admin') {
@@ -202,8 +202,11 @@ const AdminDashboardPage: React.FC = () => {
             // Update exam status to open
             updateTestStatus(examId, 'open');
 
+            // Sync test to Firebase so students can see it
+            await syncTestToFirebase(examId);
+
             showToast('success', `Exam published to ${userIds.length} student${userIds.length !== 1 ? 's' : ''}!`);
-        } catch (error) {
+        } catch (_error) {
             showToast('error', 'Failed to publish exam');
         }
     };

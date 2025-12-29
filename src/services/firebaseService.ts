@@ -19,7 +19,7 @@ import {
     onSnapshot
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Candidate, Attempt, QuestionResponse } from '../types';
+import { Candidate, Attempt, QuestionResponse, Test, Question, TestSettings } from '../types';
 
 // Collection names
 const COLLECTIONS = {
@@ -310,14 +310,14 @@ export const attemptService = {
     async getAttemptsForTest(testId: string): Promise<AttemptRecord[]> {
         try {
             const attemptsRef = collection(db, COLLECTIONS.ATTEMPTS);
+            // Only use where clause, no orderBy to avoid needing composite index
             const q = query(
                 attemptsRef,
-                where('testId', '==', testId),
-                orderBy('createdAt', 'desc')
+                where('testId', '==', testId)
             );
             const snapshot = await getDocs(q);
 
-            return snapshot.docs.map(doc => {
+            const attempts = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
                     id: doc.id,
@@ -327,6 +327,11 @@ export const attemptService = {
                     createdAt: data.createdAt?.toDate() || new Date(),
                 } as AttemptRecord;
             });
+
+            // Sort by createdAt in JavaScript instead
+            return attempts.sort((a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
         } catch (error) {
             console.error('Error getting attempts for test:', error);
             throw error;
@@ -337,14 +342,14 @@ export const attemptService = {
     async getAttemptsForStudent(studentId: string): Promise<AttemptRecord[]> {
         try {
             const attemptsRef = collection(db, COLLECTIONS.ATTEMPTS);
+            // Only use where clause, no orderBy to avoid needing composite index
             const q = query(
                 attemptsRef,
-                where('studentId', '==', studentId),
-                orderBy('createdAt', 'desc')
+                where('studentId', '==', studentId)
             );
             const snapshot = await getDocs(q);
 
-            return snapshot.docs.map(doc => {
+            const attempts = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
                     id: doc.id,
@@ -354,6 +359,11 @@ export const attemptService = {
                     createdAt: data.createdAt?.toDate() || new Date(),
                 } as AttemptRecord;
             });
+
+            // Sort by createdAt in JavaScript
+            return attempts.sort((a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
         } catch (error) {
             console.error('Error getting attempts for student:', error);
             throw error;
@@ -386,10 +396,10 @@ export const attemptService = {
     // Subscribe to attempts for real-time updates
     subscribeToAttempts(testId: string, callback: (attempts: AttemptRecord[]) => void): () => void {
         const attemptsRef = collection(db, COLLECTIONS.ATTEMPTS);
+        // Only use where clause, no orderBy to avoid needing composite index
         const q = query(
             attemptsRef,
-            where('testId', '==', testId),
-            orderBy('createdAt', 'desc')
+            where('testId', '==', testId)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -403,7 +413,11 @@ export const attemptService = {
                     createdAt: data.createdAt?.toDate() || new Date(),
                 } as AttemptRecord;
             });
-            callback(attempts);
+            // Sort by createdAt in JavaScript
+            const sortedAttempts = attempts.sort((a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            callback(sortedAttempts);
         });
 
         return unsubscribe;
@@ -569,11 +583,205 @@ export const performanceService = {
     },
 };
 
+// ============================================
+// Test Service - Sync Tests to Firebase
+// ============================================
+
+export interface TestRecord {
+    id: string;
+    name: string;
+    status: string;
+    settings: TestSettings;
+    urlAlias?: string;
+    scheduledStart?: Date;
+    scheduledEnd?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export interface QuestionRecord {
+    id: string;
+    testId: string;
+    type: string;
+    text: string;
+    options: Array<{ id: string; text: string; isCorrect: boolean }>;
+    correctAnswer?: string;
+    explanation?: string;
+    difficulty: string;
+    topic: string;
+    points: number;
+    negativeMarking: number;
+    order: number;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+export const testService = {
+    // Save or update a test
+    async saveTest(test: Test): Promise<void> {
+        try {
+            const testRef = doc(db, COLLECTIONS.TESTS, test.id);
+            await setDoc(testRef, {
+                name: test.name,
+                status: test.status,
+                settings: test.settings,
+                urlAlias: test.urlAlias || null,
+                scheduledStart: test.scheduledStart ? Timestamp.fromDate(new Date(test.scheduledStart)) : null,
+                scheduledEnd: test.scheduledEnd ? Timestamp.fromDate(new Date(test.scheduledEnd)) : null,
+                createdAt: test.createdAt ? Timestamp.fromDate(new Date(test.createdAt)) : serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            }, { merge: true });
+            console.log('✅ Test saved to Firebase:', test.id);
+        } catch (error) {
+            console.error('Error saving test:', error);
+            throw error;
+        }
+    },
+
+    // Save questions for a test
+    async saveQuestions(questions: Question[]): Promise<void> {
+        try {
+            for (const question of questions) {
+                const questionRef = doc(db, 'questions', question.id);
+                await setDoc(questionRef, {
+                    testId: question.testId,
+                    type: question.type,
+                    text: question.text,
+                    options: question.options,
+                    correctAnswer: question.correctAnswer || null,
+                    explanation: question.explanation || null,
+                    difficulty: question.difficulty,
+                    topic: question.topic,
+                    points: question.points,
+                    negativeMarking: question.negativeMarking,
+                    order: question.order,
+                    createdAt: question.createdAt ? Timestamp.fromDate(new Date(question.createdAt)) : serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                }, { merge: true });
+            }
+            console.log('✅ Questions saved to Firebase:', questions.length);
+        } catch (error) {
+            console.error('Error saving questions:', error);
+            throw error;
+        }
+    },
+
+    // Get all open/published tests
+    async getAllTests(): Promise<TestRecord[]> {
+        try {
+            const testsRef = collection(db, COLLECTIONS.TESTS);
+            const snapshot = await getDocs(testsRef);
+
+            return snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    name: data.name,
+                    status: data.status,
+                    settings: data.settings,
+                    urlAlias: data.urlAlias,
+                    scheduledStart: data.scheduledStart?.toDate(),
+                    scheduledEnd: data.scheduledEnd?.toDate(),
+                    createdAt: data.createdAt?.toDate() || new Date(),
+                    updatedAt: data.updatedAt?.toDate() || new Date(),
+                } as TestRecord;
+            });
+        } catch (error) {
+            console.error('Error getting tests:', error);
+            throw error;
+        }
+    },
+
+    // Get questions for a test
+    async getQuestionsForTest(testId: string): Promise<QuestionRecord[]> {
+        try {
+            const questionsRef = collection(db, 'questions');
+            // Only use where clause, no orderBy to avoid needing a composite index
+            const q = query(questionsRef, where('testId', '==', testId));
+            const snapshot = await getDocs(q);
+
+            const questions = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    testId: data.testId,
+                    type: data.type,
+                    text: data.text,
+                    options: data.options,
+                    correctAnswer: data.correctAnswer,
+                    explanation: data.explanation,
+                    difficulty: data.difficulty,
+                    topic: data.topic,
+                    points: data.points,
+                    negativeMarking: data.negativeMarking,
+                    order: data.order || 0,
+                    createdAt: data.createdAt?.toDate() || new Date(),
+                    updatedAt: data.updatedAt?.toDate() || new Date(),
+                } as QuestionRecord;
+            });
+
+            // Sort by order in JavaScript instead
+            return questions.sort((a, b) => (a.order || 0) - (b.order || 0));
+        } catch (error) {
+            console.error('Error getting questions:', error);
+            throw error;
+        }
+    },
+
+    // Subscribe to tests for real-time updates
+    subscribeToTests(callback: (tests: TestRecord[]) => void): () => void {
+        const testsRef = collection(db, COLLECTIONS.TESTS);
+
+        const unsubscribe = onSnapshot(testsRef, (snapshot) => {
+            const tests = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    name: data.name,
+                    status: data.status,
+                    settings: data.settings,
+                    urlAlias: data.urlAlias,
+                    scheduledStart: data.scheduledStart?.toDate(),
+                    scheduledEnd: data.scheduledEnd?.toDate(),
+                    createdAt: data.createdAt?.toDate() || new Date(),
+                    updatedAt: data.updatedAt?.toDate() || new Date(),
+                } as TestRecord;
+            });
+            callback(tests);
+        });
+
+        return unsubscribe;
+    },
+
+    // Delete a test
+    async deleteTest(testId: string): Promise<void> {
+        try {
+            // Delete the test
+            const testRef = doc(db, COLLECTIONS.TESTS, testId);
+            await deleteDoc(testRef);
+
+            // Delete associated questions
+            const questionsRef = collection(db, 'questions');
+            const q = query(questionsRef, where('testId', '==', testId));
+            const snapshot = await getDocs(q);
+
+            const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+
+            console.log('✅ Test and questions deleted from Firebase:', testId);
+        } catch (error) {
+            console.error('Error deleting test:', error);
+            throw error;
+        }
+    },
+};
+
 // Export all services
 export const firebaseServices = {
     students: studentService,
     attempts: attemptService,
     performance: performanceService,
+    tests: testService,
 };
 
 export default firebaseServices;
